@@ -43,6 +43,10 @@ categories:
 
   enchanting_mats:
     - {id: 14344, name: Large Brilliant Shard, seen_beta: false}
+    # 2026-10-11: added after the crafted-wand vendor price news (plan/news-log.yaml)
+    - {id: 10940, name: Strange Dust,          seen_beta: true}
+    - {id: 10938, name: Lesser Magic Essence,  seen_beta: true}
+    - {id: 10939, name: Greater Magic Essence, seen_beta: true}
 
   raid_consumables:
     - {id: 13452, name: Elixir of the Mongoose, seen_beta: false}

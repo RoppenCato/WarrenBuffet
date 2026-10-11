@@ -1,0 +1,61 @@
+# Reviewed news - see "News review" in CLAUDE.md. One entry per story that was read.
+# verdict: relevant | minor | none
+# effect:  what it may do to supply, demand or prices, in our own words. Say when it is a guess.
+# items:   watchlist names or categories it touches
+# action:  what was changed because of it (watchlist, calendar, playbook), if anything
+# Quote every title - most contain a colon.
+# Headlines and links are Wowhead's (https://www.wowhead.com/news); the articles stay there.
+
+reviewed:
+  - link: https://www.wowhead.com/news=383332/crafted-wand-sell-prices-partially-un-nerfed-in-latest-forever-build
+    date: 2026-10-08
+    title: "Crafted Wand Sell Prices Partially Un-Nerfed in Latest Forever Build"
+    verdict: relevant
+    effect: >-
+      Crafted enchanting wands vendor for more than one copper again, though less than in Classic.
+      Levelling Enchanting costs less, so expect more enchanters and steadier demand for low-level
+      dust and essences. The new vendor prices are in the article.
+    items: [Strange Dust, Lesser Magic Essence, Greater Magic Essence]
+    action: Added the three materials to the watchlist.
+
+  - link: https://www.wowhead.com/news=383345/gdkp-ban-only-applies-to-na-and-europe-realms-4gamers-interview
+    date: 2026-10-09
+    title: "GDKP Ban Only Applies to NA and Europe Realms - 4Gamers Interview"
+    verdict: relevant
+    effect: >-
+      EU keeps the GDKP ban. In the same interview Blizzard says players will earn clearly more
+      gold than in original Classic, and repeats the 50g vendor cap on Black Lotus. Guess: prices
+      in gold will sit above the 2019 numbers in the playbook, while capped materials stay capped.
+    items: [Black Lotus, endgame_mats]
+    action: None yet. Treat the "numbers to remember" table in the playbook as a floor, not a target.
+
+  - link: https://www.wowhead.com/news=383310/2-100-gold-buying-accounts-have-been-banned-on-wow-forever-beta
+    date: 2026-10-08
+    title: "2,100+ Gold Buying Accounts Have Been Banned on WoW: Forever Beta"
+    verdict: minor
+    effect: >-
+      Over 2,100 buyer accounts and about 1,600 seller or bot accounts closed during the beta, with
+      the same line promised for launch. Guess: if it holds, bot-farmed herbs and ore keep their
+      value longer than in past launches. One announcement does not prove it.
+    items: [leveling_mats, endgame_mats]
+    action: None.
+
+  - link: https://www.wowhead.com/news=383269/do-we-have-enough-bag-space-in-wow-forever
+    date: 2026-10-08
+    title: "Do We Have Enough Bag Space in WoW: Forever?"
+    verdict: minor
+    effect: >-
+      Opinion piece, but it confirms Forever starts with far more bag and bank space than Classic,
+      including a reagent bag. Guess: bags will be a weaker launch seller than in 2019.
+    items: [bags]
+    action: None. Watch the Linen Bag price in launch week before crafting bags in volume.
+
+  - link: https://www.wowhead.com/news=383334/wolfshead-helm-nerfed-in-latest-wow-forever-beta-build
+    date: 2026-10-09
+    title: "Wolfshead Helm Nerfed in Latest WoW: Forever Beta Build"
+    verdict: minor
+    effect: >-
+      The leatherworking helm that druids wore through all of Classic now gives a small bonus only.
+      Demand for the craft will be well below Classic's, so it is not a product to plan around.
+    items: []
+    action: None.
