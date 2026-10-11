@@ -55,17 +55,35 @@ def when(ts: int) -> str:
     return dt.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
 
 
-def sv_path(arg: str | None) -> Path:
-    """SavedVariables file: --sv, else FOREVERAH_SV, else "sv" in data/local.json (not committed)."""
-    local = ROOT / "data" / "local.json"
-    path = arg or os.environ.get("FOREVERAH_SV") or (
-        json.loads(local.read_text(encoding="utf-8")).get("sv") if local.exists() else None)
-    if not path:
-        raise SystemExit('no SavedVariables path: pass --sv, set FOREVERAH_SV, or put {"sv": "..."} in data/local.json')
-    return Path(path)
+# Changed 2026-10-11: two accounts means two SavedVariables files, and the launch client will use
+# another folder. The function now returns a list and can find every account's file by itself
+# from the game folder ("wow" in data/local.json). savedvars.load merges a list into one table.
+# def sv_path(arg: str | None) -> Path:
+#     """SavedVariables file: --sv, else FOREVERAH_SV, else "sv" in data/local.json (not committed)."""
+#     local = ROOT / "data" / "local.json"
+#     path = arg or os.environ.get("FOREVERAH_SV") or (
+#         json.loads(local.read_text(encoding="utf-8")).get("sv") if local.exists() else None)
+#     if not path:
+#         raise SystemExit('no SavedVariables path: pass --sv, set FOREVERAH_SV, or put {"sv": "..."} in data/local.json')
+#     return Path(path)
+def sv_path(arg: str | None) -> list[Path]:
+    """SavedVariables files, one per account. In order: --sv, FOREVERAH_SV, "sv" in data/local.json
+    (a path or a list), else every WTF/Account/*/SavedVariables/ForeverAH.lua under "wow" in
+    data/local.json. data/local.json is not committed."""
+    file = ROOT / "data" / "local.json"
+    local = json.loads(file.read_text(encoding="utf-8")) if file.exists() else {}
+    explicit = arg or os.environ.get("FOREVERAH_SV") or local.get("sv")
+    if explicit:
+        return [Path(p) for p in ([explicit] if isinstance(explicit, str) else explicit)]
+    if local.get("wow"):
+        found = sorted(Path(local["wow"]).glob("WTF/Account/*/SavedVariables/ForeverAH.lua"))
+        if found:
+            return found
+        raise SystemExit(f"no ForeverAH.lua under {local['wow']} - has the addon run and the game been reloaded?")
+    raise SystemExit('no SavedVariables path: pass --sv, set FOREVERAH_SV, or put {"wow": "<game folder>"} in data/local.json')
 
 
-def build(sv: Path, market: str | None, pull: bool, out: Path) -> Path:
+def build(sv, market: str | None, pull: bool, out: Path) -> Path:   # sv: a path, or one per account
     db = savedvars.load(sv)
     scans = [s for s in db.get("scans") or [] if s.get("raw")]
     if not scans:

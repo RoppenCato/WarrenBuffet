@@ -26,8 +26,40 @@ def _to_py(obj):
     return {k: _to_py(v) for k, v in obj.items()}
 
 
+def merge(dbs: list[dict]) -> dict:
+    """Several accounts' tables as one (added 2026-10-11: the user plays two accounts).
+    SavedVariables are per account, so each account has its own file. Characters are unique
+    across accounts; a scan both accounts made in the same second is kept once."""
+    if len(dbs) == 1:
+        return dbs[0]
+    out = {"scans": [], "ledger": [], "inv": {}, "errors": [], "throttled": 0}
+    seen, lines = set(), {}
+    for db in dbs:
+        for scan in db.get("scans") or []:
+            if scan["id"] not in seen:
+                seen.add(scan["id"])
+                out["scans"].append(scan)
+        out["ledger"] += list(db.get("ledger") or [])
+        out["inv"].update(db.get("inv") or {})
+        out["errors"] += list(db.get("errors") or [])
+        out["throttled"] += db.get("throttled") or 0
+        for line in (db.get("items") or "").split("\n"):
+            if line:
+                lines.setdefault(line.split("\t", 1)[0], line)
+        for key in ("trader", "build", "missing", "uiErr"):
+            if db.get(key) and not out.get(key):
+                out[key] = db[key]
+    out["scans"].sort(key=lambda scan: scan["ts"])
+    out["ledger"].sort(key=lambda row: int(row.split(",", 1)[0]))
+    out["items"] = "".join(line + "\n" for line in lines.values())
+    return out
+
+
 def load(path) -> dict:
-    """SavedVariables file -> ForeverAHDB as Python dicts/lists. Empty Lua tables become {}."""
+    """SavedVariables file -> ForeverAHDB as Python dicts/lists. Empty Lua tables become {}.
+    A list of paths (one file per account) is loaded and merged into one table."""
+    if isinstance(path, (list, tuple)):
+        return merge([load(p) for p in path])
     # The file is Lua code. Run it with no Python access and no os/io.
     lua = LuaRuntime(register_eval=False, register_builtins=False)
     lua.execute("os, io, package, require, debug, dofile, loadfile = nil")

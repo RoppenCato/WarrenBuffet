@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from pipeline import ahledger, analytics, houses, news, planner  # noqa: E402
+from pipeline import ahledger, analytics, houses, news, planner, savedvars  # noqa: E402
 
 # (item, count, buyout total, minBid, bid, timeLeft): 10 @ 100, 10 @ 200, 20 @ 300, one bid-only row
 ROWS = [(1, 10, 1000, 0, 0, 3), (1, 10, 2000, 0, 0, 3), (1, 20, 6000, 0, 0, 4), (1, 5, 0, 50, 0, 1)]
@@ -67,6 +67,21 @@ def test_parse_pricetable():
     # A house nobody has scanned yet (EU before launch): valid header, no rows.
     assert ahledger.parse_pricetable("AHL1|forever/normal/horde/eu|1791734573|0\n") == (
         {"market": "forever.normal.horde.eu", "ts": 1791734573, "rows": 0}, {})
+
+
+def test_two_accounts_merge_into_one_table():
+    main = {"scans": [{"id": "100:R:Horde", "ts": 100}, {"id": "300:R:Horde", "ts": 300}], "trader": "Bank-R",
+            "ledger": ["100,Bank-R,gold,copper=5,at=login", "300,Bank-R,post,auction=1"],
+            "inv": {"Bank-R": {"bags": "1:2"}}, "items": "1\t5\t20\t7\t5\tLinen Cloth\n", "errors": {}, "build": "1.60.1"}
+    mage = {"scans": [{"id": "200:R:Horde", "ts": 200}, {"id": "300:R:Horde", "ts": 300}],
+            "ledger": ["200,Mage-R,gold,copper=9,at=login"], "inv": {"Mage-R": {"bags": "2:1"}},
+            "items": "1\t5\t20\t7\t5\tLinen Cloth\n2\t0\t1\t0\t0\tConjured Water\n", "errors": ["x"], "throttled": 2}
+    db = savedvars.merge([main, mage])
+    assert [s["ts"] for s in db["scans"]] == [100, 200, 300]          # by time, the shared scan once
+    assert [row.split(",")[1] for row in db["ledger"]] == ["Bank-R", "Mage-R", "Bank-R"]
+    assert sorted(db["inv"]) == ["Bank-R", "Mage-R"] and db["trader"] == "Bank-R"
+    assert sorted(savedvars.items(db)) == [1, 2] and db["errors"] == ["x"] and db["throttled"] == 2
+    assert savedvars.merge([main]) is main
 
 
 def test_houses():
