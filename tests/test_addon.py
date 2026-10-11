@@ -209,10 +209,13 @@ def test_abort_on_close_and_timeout():
 
 
 def test_missing_events_do_not_break_the_addon():
-    game = Game(unknown_events=["ITEM_PURCHASED", "COMMODITY_PURCHASED"])
+    # Changed 2026-10-11: the ledger no longer listens to COMMODITY_PURCHASED, so use another event.
+    # game = Game(unknown_events=["ITEM_PURCHASED", "COMMODITY_PURCHASED"])
+    game = Game(unknown_events=["ITEM_PURCHASED", "AUCTION_CANCELED"])
     game.slash("")
     assert any("events missing in this client: " in p and "ITEM_PURCHASED" in p for p in game.printed())
-    assert game.db()["missing"] == "COMMODITY_PURCHASED,ITEM_PURCHASED"
+    # assert game.db()["missing"] == "COMMODITY_PURCHASED,ITEM_PURCHASED"
+    assert game.db()["missing"] == "AUCTION_CANCELED,ITEM_PURCHASED"
     game.set_auctions(make_auctions(100, 5))
     game.open_ah()
     assert len(game.db()["scans"]) == 1
@@ -225,23 +228,42 @@ def test_ledger_posts_and_purchases():
     game.fire("AUCTION_HOUSE_AUCTION_CREATED", 111)
     ah.PostCommodity(game.lua.table_from({"id": 2770}), 2, 40, 25)
     game.fire("AUCTION_HOUSE_AUCTION_CREATED", 222)
-    game.fire("AUCTION_CANCELED", 111)
+    # Changed 2026-10-11 (beta T6): cancel and commodity purchase are taken from the player's click.
+    # The events behave as seen in build 70338: AUCTION_CANCELED without the auction id,
+    # no COMMODITY_PURCHASED, AUCTION_HOUSE_PURCHASE_COMPLETED with 0.
+    # game.fire("AUCTION_CANCELED", 111)
+    # ah.PlaceBid(333, 9000)
+    # game.fire("AUCTION_HOUSE_PURCHASE_COMPLETED", 333)
+    # game.fire("COMMODITY_PRICE_UPDATED", 30, 600)
+    # game.fire("COMMODITY_PURCHASED", 2770, 20)
+    # game.fire("PLAYER_LOGOUT")
+    #
+    # rows = game.ledger()
+    # assert [r["event"] for r in rows] == ["gold", "post", "post", "cancel", "bid", "buy_done", "buy_commodity", "gold"]
+    ah.CancelAuction(111)
+    game.fire("AUCTION_CANCELED", 114)
     ah.PlaceBid(333, 9000)
     game.fire("AUCTION_HOUSE_PURCHASE_COMPLETED", 333)
     game.fire("COMMODITY_PRICE_UPDATED", 30, 600)
-    game.fire("COMMODITY_PURCHASED", 2770, 20)
+    ah.ConfirmCommoditiesPurchase(2770, 20)
+    game.fire("AUCTION_HOUSE_PURCHASE_COMPLETED", 0)
     game.fire("PLAYER_LOGOUT")
 
     rows = game.ledger()
-    assert [r["event"] for r in rows] == ["gold", "post", "post", "cancel", "bid", "buy_done", "buy_commodity", "gold"]
+    assert [r["event"] for r in rows] == ["gold", "post", "post", "cancel", "cancel_evt", "bid", "buy_done",
+                                          "buy_commodity", "buy_done", "gold"]
     assert all(r["char"] == "Tester-BetaRealm" for r in rows)
     post = rows[1]
     assert (post["kind"], post["item"], post["qty"], post["bid"], post["buyout"]) == ("item", 2589, 1, 400, 500)
     assert (post["auction"], post["dur"], post["dep"], post["seq"]) == (111, 1, 100, 1)
     assert (rows[2]["kind"], rows[2]["unit"], rows[2]["dep"], rows[2]["auction"]) == ("commodity", 25, 280, 222)
-    assert rows[3]["auction"] == 111
-    assert (rows[4]["auction"], rows[4]["total"]) == (333, 9000)
-    assert (rows[6]["item"], rows[6]["qty"], rows[6]["unit"], rows[6]["total"]) == (2770, 20, 30, 600)
+    # assert rows[3]["auction"] == 111
+    # assert (rows[4]["auction"], rows[4]["total"]) == (333, 9000)
+    # assert (rows[6]["item"], rows[6]["qty"], rows[6]["unit"], rows[6]["total"]) == (2770, 20, 30, 600)
+    assert (rows[3]["auction"], rows[3]["cost"]) == (111, 3)
+    assert rows[4]["arg"] == 114
+    assert (rows[5]["auction"], rows[5]["total"]) == (333, 9000)
+    assert (rows[7]["item"], rows[7]["qty"], rows[7]["unit"], rows[7]["total"]) == (2770, 20, 30, 600)
     assert rows[0]["copper"] == 123456 and rows[0]["at"] == "login"
 
 
@@ -253,11 +275,22 @@ def test_ledger_mail_is_logged_once():
     def mail(**kw):
         return game.lua.table_from(kw)
 
-    def open_mailbox():
+    # Changed 2026-10-11 (beta T6): opening the mailbox refreshes daysLeft; later inbox updates
+    # (looting a mail) do not. The old helper refreshed on every update.
+    # def open_mailbox():
+    #     for _ in range(3):                   # the event comes in bursts
+    #         game.fire("MAIL_INBOX_UPDATE")
+    #     game.g.Advance(1)
+    #     game.frames(1)
+    def update():
         for _ in range(3):                   # the event comes in bursts
             game.fire("MAIL_INBOX_UPDATE")
         game.g.Advance(1)
         game.frames(1)
+
+    def open_mailbox():
+        game.g.RefreshInbox()
+        update()
 
     sold = dict(subject="Auction successful: Linen Bag", money=950, invoice="seller", name="Linen Bag",
                 bid=1000, buyout=1000, deposit=20, fee=50, count=1)
@@ -269,7 +302,9 @@ def test_ledger_mail_is_logged_once():
         mail(expires=now + 30 * day + 1, **bought),      # identical purchase one second later
         mail(subject="Auction expired: Rough Stone, Polished", expires=now + 29 * day,
              name="Rough Stone, Polished", item=2835, itemCount=7),
-        mail(subject="Auction cancelled: Linen Cloth", expires=now + 29 * day, name="Linen Cloth", item=2589),
+        # mail(subject="Auction cancelled: Linen Cloth", expires=now + 29 * day, name="Linen Cloth", item=2589),
+        mail(subject="Auction cancelled: Linen Cloth (13)", expires=now + 29 * day, name="Linen Cloth",
+             item=2589, itemCount=13),       # 2026-10-11: real subjects carry the stack size
         mail(subject="Outbid on Wool Cloth", money=500, expires=now + 3 * day),
         mail(subject="Hello from a friend", expires=now + 3 * day),
     ])
@@ -281,10 +316,22 @@ def test_ledger_mail_is_logged_once():
     assert (rows[1]["item"], rows[1]["qty"], rows[1]["total"]) == (2770, 20, 300)
     assert (rows[3]["item"], rows[3]["qty"], rows[3]["name"]) == (2835, 7, "Rough Stone, Polished")
     assert rows[5]["name"] == "Wool Cloth" and rows[5]["money"] == 500
+    assert (rows[4]["name"], rows[4]["item"], rows[4]["qty"]) == ("Linen Cloth", 2589, 13)
 
-    game.g.Advance(3600)                     # same mails an hour later: nothing new
-    open_mailbox()
+    # Changed 2026-10-11 (beta T6): first the case that double-logged in the beta - a mail is
+    # looted a few seconds later and the inbox updates without a refresh.
+    # game.g.Advance(3600)                     # same mails an hour later: nothing new
+    # open_mailbox()
+    # game.g.table.remove(game.g.INBOX, 2)     # one of the twin purchases is taken
+    # open_mailbox()
+    # assert len(game.ledger()) == len(rows) + 1
+    game.g.Advance(3)
     game.g.table.remove(game.g.INBOX, 2)     # one of the twin purchases is taken
+    update()
+    game.g.Advance(40)
+    update()
+    assert len(game.ledger()) == len(rows) + 1
+    game.g.Advance(3600)                     # same mails an hour later, refreshed: nothing new
     open_mailbox()
     assert len(game.ledger()) == len(rows) + 1
 

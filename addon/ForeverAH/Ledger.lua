@@ -4,10 +4,14 @@
 --
 -- Row (ForeverAHDB.ledger[i]): "ts,char,event,key=value,...[,name=Item Name]"
 -- name is always last because item names may contain commas.
---   AH events: post, cancel, bid, buy_commodity, buy_done, buy_item
+-- Changed 2026-10-11 (beta T6): cancel and buy_commodity now come from the player's own click,
+-- cancel_evt is the raw AUCTION_CANCELED event. Durations in Forever are 2/8/24 h, not 12/24/48.
+-- --   AH events: post, cancel, bid, buy_commodity, buy_done, buy_item
+--   AH events: post, cancel, cancel_evt, bid, buy_commodity, buy_done, buy_item
 --   mail:      sold, sold_pending, bought, expired, cancelled, outbid
 --   other:     gold (login/logout)
--- Money is copper. dur: 1 = 12 h, 2 = 24 h, 3 = 48 h.
+-- -- Money is copper. dur: 1 = 12 h, 2 = 24 h, 3 = 48 h.
+-- Money is copper. dur: 1 = 2 h, 2 = 8 h, 3 = 24 h (beta build 70338).
 
 local _, ns = ...
 
@@ -78,9 +82,21 @@ ns.On("AUCTION_HOUSE_AUCTION_CREATED", function(auctionID)
   Log("post", pending and (fields .. "," .. pending) or fields)
 end)
 
+-- Changed 2026-10-11 (beta T6): AUCTION_CANCELED does not carry the auction id in build 70338
+-- (seen: 114 for a real cancel, 0 at a purchase, and once 13 s after opening the AH). The
+-- player's own CancelAuction click does, so that is the cancel row; the event is kept as a probe.
+-- -- Join to the post row on auction id for item and price.
+-- ns.On("AUCTION_CANCELED", function(auctionID)
+--   Log("cancel", KV("auction", auctionID))
+-- end)
 -- Join to the post row on auction id for item and price.
-ns.On("AUCTION_CANCELED", function(auctionID)
-  Log("cancel", KV("auction", auctionID))
+if C_AuctionHouse.CancelAuction then
+  hooksecurefunc(C_AuctionHouse, "CancelAuction", function(auctionID)
+    Log("cancel", KV("auction", auctionID, "cost", Try(C_AuctionHouse.GetCancelCost, auctionID)))
+  end)
+end
+ns.On("AUCTION_CANCELED", function(arg)
+  Log("cancel_evt", KV("arg", arg))
 end)
 
 ---------------------------------------------------------------------------------------------
@@ -97,9 +113,16 @@ local unitPrice, totalPrice
 ns.On("COMMODITY_PRICE_UPDATED", function(unit, total)
   unitPrice, totalPrice = unit, total
 end)
-ns.On("COMMODITY_PURCHASED", function(itemID, quantity)
-  Log("buy_commodity", KV("item", itemID, "qty", quantity, "unit", unitPrice, "total", totalPrice))
-end)
+-- Changed 2026-10-11 (beta T6): COMMODITY_PURCHASED did not fire for a commodity purchase; only
+-- AUCTION_HOUSE_PURCHASE_COMPLETED (with 0) did. Log the player's confirm click instead.
+-- ns.On("COMMODITY_PURCHASED", function(itemID, quantity)
+--   Log("buy_commodity", KV("item", itemID, "qty", quantity, "unit", unitPrice, "total", totalPrice))
+-- end)
+if C_AuctionHouse.ConfirmCommoditiesPurchase then
+  hooksecurefunc(C_AuctionHouse, "ConfirmCommoditiesPurchase", function(itemID, quantity)
+    Log("buy_commodity", KV("item", itemID, "qty", quantity, "unit", unitPrice, "total", totalPrice))
+  end)
+end
 ns.On("AUCTION_HOUSE_PURCHASE_COMPLETED", function(auctionID)
   Log("buy_done", KV("auction", auctionID))
 end)
@@ -134,9 +157,17 @@ local function SubjectEvent(subject)
   end
   for pat, event in pairs(subjectPatterns) do
     local name = subject:match(pat)
-    if name then return event, name end
+    -- Changed 2026-10-11 (beta T6): the subject carries the stack size, "Linen Cloth (13)".
+    -- Strip it so name is the item name; qty comes from the attachment.
+    -- if name then return event, name end
+    if name then return event, (name:gsub(" %(%d+%)$", "")) end
   end
 end
+
+-- Added 2026-10-11 (beta T6): daysLeft is a snapshot from the last inbox refresh - it does not
+-- count down. now + daysLeft therefore drifts until the next refresh, and one mail was logged
+-- twice, 3 s apart. Anchor each daysLeft value to the time it was first seen instead.
+local sampled = {}   -- daysLeft value -> server time first seen; carried from scan to scan
 
 -- Index of the closest not-yet-matched expiry within MAIL_TOL, or nil.
 local function Match(list, used, expiry)
@@ -152,15 +183,19 @@ end
 
 local function ScanInbox()
   local seen, now, used = ns.db.mailSeen, GetServerTime(), {}
-  for i = 1, GetInboxNumItems() do
+  local fresh, numItems = {}, GetInboxNumItems()
+  -- for i = 1, GetInboxNumItems() do   (2026-10-11: count kept, see the end of the loop)
+  for i = 1, numItems do
     local _, _, _, subject, money, _, daysLeft = GetInboxHeaderInfo(i)
+    if daysLeft then fresh[daysLeft] = sampled[daysLeft] or now end
     local invoiceType, itemName, _, bid, buyout, deposit, consignment, _, _, _, count = GetInboxInvoiceInfo(i)
     local event, name = INVOICE_EVENTS[invoiceType or ""], itemName
     if not event and subject then event, name = SubjectEvent(subject) end
     if event and daysLeft then
       if not count or count < 1 then count = nil end
       local key = event .. "|" .. (name or "") .. "|" .. (count or 0) .. "|" .. (bid or 0)
-      local expiry = math.floor(now + daysLeft * 86400 + 0.5)
+      -- local expiry = math.floor(now + daysLeft * 86400 + 0.5)   (2026-10-11: drifted, see `sampled`)
+      local expiry = math.floor(fresh[daysLeft] + daysLeft * 86400 + 0.5)
       local list, u = seen[key], used[key]
       if not list then list = {} seen[key] = list end
       if not u then u = {} used[key] = u end
@@ -177,6 +212,8 @@ local function ScanInbox()
       end
     end
   end
+  -- An empty inbox (not loaded yet) must not wipe the anchors.
+  if numItems > 0 then sampled = fresh end
 end
 
 -- MAIL_INBOX_UPDATE fires in bursts; scan once after it settles.

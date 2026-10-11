@@ -90,6 +90,10 @@ end
 function C_AuctionHouse.PostItem() return false end
 function C_AuctionHouse.PostCommodity() return false end
 function C_AuctionHouse.PlaceBid() end
+-- Added 2026-10-11 (beta T6): the clicks the ledger now observes.
+function C_AuctionHouse.CancelAuction() end
+function C_AuctionHouse.GetCancelCost() return 3 end
+function C_AuctionHouse.ConfirmCommoditiesPurchase() end
 function C_AuctionHouse.CalculateItemDeposit(_, duration) return 100 * duration end
 function C_AuctionHouse.CalculateCommodityDeposit(_, _, quantity) return 7 * quantity end
 
@@ -105,9 +109,19 @@ AUCTION_OUTBID_MAIL_SUBJECT = "Outbid on %s"
 
 function GetInboxNumItems() return #INBOX, #INBOX end
 
+-- Changed 2026-10-11 (beta T6): daysLeft is a snapshot taken when the inbox is refreshed from
+-- the server, not a live countdown. The stub computed it live, which hid the double-logging.
+-- function GetInboxHeaderInfo(i)
+--   local m = INBOX[i]
+--   return nil, nil, "Horde Auction House", m.subject, m.money or 0, 0, (m.expires - now) / 86400, m.item and 1 or nil
+-- end
+function RefreshInbox()
+  for _, m in ipairs(INBOX) do m.daysLeft = (m.expires - now) / 86400 end
+end
+
 function GetInboxHeaderInfo(i)
   local m = INBOX[i]
-  return nil, nil, "Horde Auction House", m.subject, m.money or 0, 0, (m.expires - now) / 86400, m.item and 1 or nil
+  return nil, nil, "Horde Auction House", m.subject, m.money or 0, 0, m.daysLeft, m.item and 1 or nil
 end
 
 function GetInboxInvoiceInfo(i)
