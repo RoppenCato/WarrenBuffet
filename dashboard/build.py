@@ -183,6 +183,9 @@ def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None =
     buys = [] if launch else planner.buy(book, ahl, budget)
     vendor_buys = planner.below_vendor(book, vendor, budget) if launch else []
     wanted += [d["item_id"] for d in vendor_buys]
+    # Crafting (added 2026-10-11, D37): recipes the characters know, priced from this scan.
+    crafts = planner.craft(savedvars.recipes(db), book, vendor, dict(holdings), sold, now=int(time.time()))
+    wanted += [d["item_id"] for d in crafts]
     wanted += list(holdings) + [a["item"] for a in inv["auctions"]] + [d["item_id"] for d in buys]
     names.update(ahledger.item_names(market, [i for i in wanted if i not in names], ROOT / "data"))
 
@@ -303,6 +306,7 @@ def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None =
     mount = (yaml.safe_load(goals_file.read_text(encoding="utf-8")) or {}).get("mount", {}) if goals_file.exists() else {}
     mount_goal = mount.get("gold", planner.MOUNT_FUND / 10000) * 10000
     labels = {"vendor": "Vendor it", "choice": "Your call",   # launch week actions, added 2026-10-11
+              "craft": "Craft",                               # added 2026-10-11 (v0.9)
               "sell": "Sell", "hold": "Hold", "keep": "Keep collecting", "price": "Check price",
               "repost": "Repost", "leave": "Leave", "buy": "Buy", "short": "Over budget"}
     quiet = {"keep", "price", "leave", "short", "hold"}
@@ -365,6 +369,10 @@ def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None =
         "sells": [row(r, r["action"], price=money(r["price"]) if "price" in r else "",
                       net=money(r["net"]) if r["action"] in ("sell", "hold", "vendor", "choice") else "",
                       where=", ".join(where.get(r["item_id"], []))) for r in sells],
+        # Crafting (added 2026-10-11, v0.9)
+        "has_recipes": bool(db.get("recipes")),
+        "crafts": [row(d, "craft", made_by=f"{d['profession']} ({d['char'].split('-')[0]})", price=money(d["price"]),
+                       cost=money(d["cost"]), profit=money(d["profit"]), estimated=d["estimated"]) for d in crafts[:12]],
         # Launch week mode (added 2026-10-11)
         "launch": {"day": cal["phase_day"], "focus": cal["phase"].get("focus", "") if cal["phase"] else "",
                    "dated": phase_id in planner.NO_HOLD_PHASES} if launch else None,
@@ -393,8 +401,10 @@ def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None =
         if launch:
             headline = (f"Launch week, day {cal['phase_day']} of 7" if phase_id in planner.NO_HOLD_PHASES
                         else "New market: launch-week rules")
+        # planfile.write(planfile.make(cur["ts"], labels, name, sells, reposts, vendor_buys if launch else buys, book,
+        #                              headline, "launch" if launch else "normal"), plan_to)
         planfile.write(planfile.make(cur["ts"], labels, name, sells, reposts, vendor_buys if launch else buys, book,
-                                     headline, "launch" if launch else "normal"), plan_to)
+                                     headline, "launch" if launch else "normal", crafts), plan_to)   # crafts: v0.9
 
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(ROOT / "dashboard" / "templates"), autoescape=True)
     # Changed 2026-10-11: two pages instead of one; `out` is now the site directory.
@@ -425,6 +435,10 @@ if __name__ == "__main__":
     # print(build(sv_path(args.sv), args.market, args.pull, Path(args.out)))
     # print(build(sv_path(args.sv), args.market, args.pull, Path(args.out), args.date))
     # (2026-10-11: also write the in-game plan, except for a --date preview)
-    plan_to = None if args.date else planfile.target()
+    # plan_to = None if args.date else planfile.target()
+    # (2026-10-11: only the plain run writes the plan. A preview date, another SavedVariables file or
+    # another output folder is a what-if, and must never replace the real plan in the game folder.)
+    default_out = Path(args.out).resolve() == (ROOT / "dashboard" / "site").resolve()
+    plan_to = planfile.target() if default_out and not args.date and not args.sv else None
     print(build(sv_path(args.sv), args.market, args.pull, Path(args.out), args.date, plan_to))
     print(f"in-game plan: {plan_to}" if plan_to else "in-game plan: not written (preview, or the addon is not installed)")

@@ -24,6 +24,12 @@ KEEP_CATEGORIES = {"stock_while_leveling", "endgame_mats"}   # watchlist categor
 TREND = 0.10                            # a 10 % move between two scans counts as rising or falling
 MIN_VENDOR_PROFIT = 50                  # copper; smaller below-vendor lots are not worth the walk
 MIN_FLIP_PROFIT = 1000                  # copper; added 2026-10-11 - the real plan suggested a 19c flip
+# Crafting (added 2026-10-11, D37)
+MIN_CRAFT_PROFIT = 25                   # copper per craft when the materials are bought
+MIN_CRAFT_RETURN = 0.15                 # profit over materials cost
+MIN_STOCK_GAIN = 100                    # copper: crafting what you hold must beat selling it raw by this much
+VENDOR_MARKUP = 4                       # vendors usually charge 4x what they pay; only used for a material
+                                        # that is not on the AH, and flagged as an estimate when it is
 
 
 def sell(holdings: dict[int, int], books, ahl, phase: str | None = None) -> list[dict]:
@@ -149,6 +155,67 @@ def below_vendor(books, vendor, balance: int = 0, limit: int = 8) -> list[dict]:
                         "why": f"Listed under the {analytics.money(pays)} a vendor pays for each."})
     out.sort(key=lambda d: (not d["affordable"], -d["profit"]))
     return out[:limit]
+
+
+def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=None, now: int | None = None) -> list[dict]:
+    """Recipes worth crafting for sale (playbook 3, craft_margin).
+
+    Per craft: the product at the cheapest listing (it has to undercut that to sell), minus the AH
+    cut, against the materials at their cheapest listings. A material nobody sells on the AH is
+    priced at VENDOR_MARKUP x its vendor value and the suggestion says so. Recipes with a material
+    we cannot price at all, or that make no item, are left out.
+    `raw` is what the same materials would bring if sold as they are - the question a gatherer
+    actually has. Recipes several characters know are listed once."""
+    vendor, holdings, sold_per_day = vendor or {}, holdings or {}, sold_per_day or {}
+    money, out, seen = analytics.money, [], set()
+    for r in recipes:
+        book = books.get(r["item_id"])
+        if not book or not r["reagents"] or r["recipe_id"] in seen:
+            continue
+        made = (r["qty_min"] + r["qty_max"]) / 2
+        price = book[0][0]
+        cost, raw, guessed, unknown = 0, 0, [], False
+        for item_id, qty in r["reagents"].items():
+            material = books.get(item_id)
+            if material:
+                cost += material[0][0] * qty
+                raw += material[0][0] * qty * (1 - analytics.AH_CUT)
+            elif vendor.get(item_id):
+                cost += vendor[item_id] * VENDOR_MARKUP * qty
+                guessed.append(item_id)
+            else:
+                unknown = True
+                break
+        if unknown:
+            continue
+        revenue = price * made * (1 - analytics.AH_CUT)
+        profit = revenue - cost
+        can_make = min(holdings.get(item_id, 0) // qty for item_id, qty in r["reagents"].items())
+        # Two ways to qualify. Buying the materials: a real margin per craft. Or you already hold
+        # them: then the question is only whether the product beats selling them as they are.
+        if guessed:
+            raw += sum(vendor[i] * VENDOR_MARKUP * r["reagents"][i] for i in guessed)
+        worth_buying = profit >= MIN_CRAFT_PROFIT and profit >= cost * MIN_CRAFT_RETURN
+        worth_from_stock = can_make > 0 and (revenue - raw) * can_make >= MIN_STOCK_GAIN and revenue >= raw * (1 + MIN_CRAFT_RETURN)
+        if not (worth_buying or worth_from_stock):
+            continue
+        seen.add(r["recipe_id"])
+        left = max(0, r["cooldown"] - ((now or r["ts"]) - r["ts"]))
+        sold = sold_per_day.get(r["item_id"]) or 0
+        why = f"Materials cost {money(cost)} a craft; it lists at {money(price)}" + (f" x{made:g}" if made != 1 else "") + "."
+        if can_make:
+            why += (f" You hold materials for {can_make}: crafted they bring {money(revenue * can_make)}, "
+                    f"sold as they are {money(raw * can_make)}.")
+        if guessed:
+            why += " One material is not on the AH and is priced by its usual vendor cost."
+        if sold:
+            why += f" About {sold:,.0f} sell a day."
+        if left:
+            why += f" Timed craft: ready in {left / 3600:.1f} h."
+        out.append({"item_id": r["item_id"], "recipe": r["name"], "profession": r["profession"], "char": r["char"],
+                    "units": can_make, "price": price, "cost": cost, "profit": profit, "raw": raw,
+                    "estimated": bool(guessed), "ready_in": left, "why": why})
+    return sorted(out, key=lambda d: (d["units"] == 0, -d["profit"]))
 
 
 def repost(auctions: list[dict], books) -> list[dict]:

@@ -45,8 +45,11 @@ def lua(value, indent: str = "") -> str:
     raise TypeError(f"cannot write {type(value).__name__} to Lua")
 
 
+# def make(scan_ts: int, labels: dict, name, sells=(), reposts=(), buys=(), books=None, headline: str = "",
+#          mode: str = "normal") -> dict:
+# (2026-10-11, v0.9: crafts added)
 def make(scan_ts: int, labels: dict, name, sells=(), reposts=(), buys=(), books=None, headline: str = "",
-         mode: str = "normal") -> dict:
+         mode: str = "normal", crafts=()) -> dict:
     """The plan table from the planner's suggestions. `labels` maps an action to its wording,
     `name` an item id to its name. Money stays in copper; the addon formats it."""
     def act(rec, default=None):
@@ -57,6 +60,8 @@ def make(scan_ts: int, labels: dict, name, sells=(), reposts=(), buys=(), books=
         "sell": [{"act": act(r), "item": name(r["item_id"]), "id": r["item_id"], "units": r["units"],
                   "price": r.get("price", 0), "get": round(r.get("net", 0)) if r["action"] != "keep" else 0, "why": r["why"]}
                  for r in list(sells)[:ROWS]],
+        "craft": [{"act": labels.get("craft", "Craft"), "item": name(d["item_id"]), "id": d["item_id"], "units": d["units"],
+                   "profit": round(d["profit"]), "cost": round(d["cost"]), "why": d["why"]} for d in list(crafts)[:ROWS]],
         "auctions": [{"act": act(r), "item": name(r["item_id"]), "id": r["item_id"], "units": r["units"],
                       "price": r["price"], "cheapest": r["cheapest"] or 0, "why": r["why"]} for r in list(reposts)[:ROWS]],
         "buy": [{"act": act(d, "buy" if d["affordable"] else "short"), "item": name(d["item_id"]), "id": d["item_id"],

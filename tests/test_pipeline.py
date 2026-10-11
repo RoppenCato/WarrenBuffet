@@ -84,6 +84,50 @@ def test_two_accounts_merge_into_one_table():
     assert savedvars.merge([main]) is main
 
 
+def test_craft_margins():
+    def recipe(recipe_id, name, item_id, reagents, **more):
+        return dict({"char": "Tailor-R", "profession": "Tailoring", "skill": 75, "ts": 1000, "recipe_id": recipe_id, "name": name,
+                     "item_id": item_id, "qty_min": 1, "qty_max": 1, "cooldown": 0, "reagents": reagents}, **more)
+
+    books = {
+        4238: [(600, 30)],                  # Linen Bag lists at 6s
+        2996: [(100, 500)],                 # Bolt of Linen Cloth 1s
+        14342: [(100_000, 5)],              # Mooncloth 10g
+        14256: [(30_000, 50)],              # Felcloth 3g
+        2568: [(120, 10)],                  # a vest that lists under its materials
+        7005: [(900, 4)],                   # a product whose material nobody sells and no vendor value is known
+    }
+    vendor = {2320: 2}                      # Coarse Thread: not on the AH, vendors pay 2c -> priced at 8c
+    recipes = [
+        recipe(3915, "Linen Bag", 4238, {2996: 3, 2320: 3}),
+        recipe(18560, "Mooncloth", 14342, {14256: 2}, cooldown=7200),
+        recipe(2385, "Brown Linen Vest", 2568, {2996: 2}),
+        recipe(1, "Mystery", 7005, {8888: 1}),
+        recipe(7421, "Runed Copper Rod", 0, {6217: 1}),
+        recipe(3915, "Linen Bag", 4238, {2996: 3, 2320: 3}, char="Other-R"),     # a second character knows it too
+    ]
+    crafts = planner.craft(recipes, books, vendor, holdings={2996: 7, 2320: 20}, sold_per_day={4238: 234}, now=1000 + 3600)
+    assert [c["recipe"] for c in crafts] == ["Linen Bag", "Mooncloth"]     # what you hold materials for comes first
+    bag, moon = crafts
+    assert (bag["cost"], bag["price"], bag["units"], bag["estimated"]) == (3 * 100 + 3 * 8, 600, 2, True)
+    assert bag["profit"] == 600 * 0.95 - 324 and bag["raw"] == 3 * 100 * 0.95 + 3 * 8
+    assert "You hold materials for 2: crafted they bring 11s 40c" in bag["why"]
+    assert "usual vendor cost" in bag["why"] and "234 sell a day" in bag["why"]
+    assert moon["profit"] == 100_000 * 0.95 - 60_000 and moon["units"] == 0 and moon["ready_in"] == 3600
+    assert "ready in 1.0 h" in moon["why"]
+    assert planner.craft(recipes, {}, vendor) == []                        # no prices, no suggestions
+
+    # A thin margin (4c a craft) is not worth buying materials for, but if you hold the cloth
+    # anyway, 50 bolts beat 100 raw cloth by more than 1s.
+    thin = [recipe(2963, "Bolt of Linen Cloth", 2996, {2589: 2})]
+    books = {2996: [(40, 900)], 2589: [(17, 9000)]}
+    assert planner.craft(thin, books) == []
+    stock = planner.craft(thin, books, holdings={2589: 100})
+    assert [(c["recipe"], c["units"]) for c in stock] == [("Bolt of Linen Cloth", 50)]
+    assert "crafted they bring 19s 00c, sold as they are 16s 15c" in stock[0]["why"]
+    assert planner.craft(thin, books, holdings={2589: 20}) == []          # 10 bolts gain 57c: not worth the clicks
+
+
 def test_plan_file_is_valid_lua():
     import tempfile
     from lupa.lua51 import LuaRuntime

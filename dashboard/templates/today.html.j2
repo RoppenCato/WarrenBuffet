@@ -82,6 +82,25 @@
   </section>
 
   <section class="card">
+    <h2>Craft</h2>
+    {% if not has_recipes %}
+    <p class="why">No recipes read yet. Open each profession window once with addon v0.9, then <code>/reload</code>.</p>
+    {% elif not crafts %}
+    <p class="why">None of your recipes clears its materials cost by 15 % in this scan.</p>
+    {% else %}
+    <p class="why">Recipes your characters know where the product lists for more than its materials cost, after the 5 % AH cut.
+      The product is priced at its cheapest listing, because that is what you have to undercut.</p>
+    <div class="scroll"><table>
+      <tr><th>Do</th><th>Item</th><th>Made by</th><th class="num">You can make</th><th class="num">Materials</th><th class="num">Lists at</th><th class="num">Profit a craft</th><th>Why</th></tr>
+      {% for r in crafts %}<tr><td><span class="act">{{ r.label }}</span></td><td>{{ r.name }}</td><td>{{ r.made_by }}</td>
+        <td class="num">{{ "{:,}".format(r.units) }}</td><td class="num">{{ r.cost }}{% if r.estimated %}<small>est.</small>{% endif %}</td>
+        <td class="num">{{ r.price }}</td><td class="num">{{ r.profit }}</td><td class="reason">{{ r.why }}</td></tr>{% endfor %}
+    </table></div>
+    <p class="note">Each post still costs a deposit of at least 1s. "est." means a material is not on the AH and was priced at four times its vendor value.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
     <h2>Your auctions</h2>
     {% if not has_auctions %}
     <p class="why">No snapshot of your auctions yet. Open the AH once with addon v0.4, then <code>/reload</code>.</p>
