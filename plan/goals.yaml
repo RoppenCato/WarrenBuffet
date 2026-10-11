@@ -1,0 +1,8 @@
+# Gold goals the Today page tracks in launch week. Change the numbers here when better ones are known.
+
+mount:
+  label: level 40 mount for the druid
+  gold: 120          # 100g riding + 20g mount. 108g with the 10 % discount at Honored with the home faction.
+  status: reported   # confirmed | reported. Source: Warcraft Tavern riding guide (docs/sources.md);
+                     # it does not say whether the price is from the beta or final for launch.
+  # One mount only: the mage does without one at first (user, 2026-10-11).

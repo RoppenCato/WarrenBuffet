@@ -23,7 +23,7 @@
     <div class="tile"><div class="label">{{ t.label }}</div><div class="value">{{ t.value }}</div><p class="note">{{ t.note }}</p></div>
     {% endfor %}
     {% if launch %}
-    <div class="tile"><div class="label">Mount fund</div><div class="value">{{ mount.pct }}</div><p class="note">{{ mount.have }} of {{ mount.goal }} for the level 40 mount</p></div>
+    <div class="tile"><div class="label">Mount fund</div><div class="value">{{ mount.pct }}</div><p class="note">{{ mount.have }} of {{ mount.goal }} for the {{ mount.label }}{% if not mount.confirmed %} (reported price, not confirmed){% endif %}</p></div>
     {% endif %}
   </section>
 

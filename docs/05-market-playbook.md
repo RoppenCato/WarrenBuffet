@@ -12,7 +12,7 @@ Lessons from Classic 2019, Season of Mastery, Season of Discovery, Hardcore and 
 | **Black Market AH** (bidding, Deathcharger's Reins from 3,000g) | Gold sink; rich players' gold leaves the economy |
 | **Scarce materials** (Pyrite, Frilled Lichen, Pristine Leather; more in files) | New, supply-limited mats used across crafts — likely premium early. Track from day 1 |
 | **600+ new recipes**, rare BS/LW recipes drop in dungeons | Old "known" margins don't apply. Crafting margins must be measured, not assumed |
-| **Riding**: 40 = 100g + 20g mount; 60 = 1,000g + 200g [R] | Mount at 40 is the first big gold demand from levelers |
+| **Riding**: 40 = 100g + 20g mount; 60 = 1,000g + 200g [R]. 10 % off at Honored with the home faction; paladins and warlocks get theirs from class quests [R] | Mount at 40 is the first big gold demand from levelers. Our goal lives in `plan/goals.yaml` |
 | **No WoW Token, no boosts, harder line on gold buyers** | Less legal gold inflow; RMT still happens (bots seen in beta) |
 | **Level cap fixed at 60**; new content as raids/zones at 60 | No expansion wipe of item value; phase speculation still matters |
 | **Gear stat changes** (hit+crit merged, healing → also spell damage) | Old BoE value rankings wrong; let data decide |

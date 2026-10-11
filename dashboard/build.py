@@ -296,6 +296,9 @@ def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None =
         "generated": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
     # ---- Today page (added 2026-10-11): the planner's suggestions, formatted
+    goals_file = ROOT / "plan" / "goals.yaml"
+    mount = (yaml.safe_load(goals_file.read_text(encoding="utf-8")) or {}).get("mount", {}) if goals_file.exists() else {}
+    mount_goal = mount.get("gold", planner.MOUNT_FUND / 10000) * 10000
     labels = {"vendor": "Vendor it", "choice": "Your call",   # launch week actions, added 2026-10-11
               "sell": "Sell", "hold": "Hold", "keep": "Keep collecting", "price": "Check price",
               "repost": "Repost", "leave": "Leave", "buy": "Buy", "short": "Over budget"}
@@ -362,8 +365,12 @@ def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None =
         # Launch week mode (added 2026-10-11)
         "launch": {"day": cal["phase_day"], "focus": cal["phase"].get("focus", "") if cal["phase"] else "",
                    "dated": phase_id in planner.NO_HOLD_PHASES} if launch else None,
-        "mount": {"have": money(summary["last"]), "goal": money(planner.MOUNT_FUND),
-                  "pct": f"{min(1, summary['last'] / planner.MOUNT_FUND):.0%}"},
+        # Changed 2026-10-11: the goal comes from plan/goals.yaml - the price is only reported, and
+        # which characters need a mount is the player's choice. planner.MOUNT_FUND is the fallback.
+        # "mount": {"have": money(summary["last"]), "goal": money(planner.MOUNT_FUND),
+        #           "pct": f"{min(1, summary['last'] / planner.MOUNT_FUND):.0%}"},
+        "mount": {"have": money(summary["last"]), "goal": money(mount_goal), "label": mount.get("label", "level 40 mount"),
+                  "pct": f"{min(1, summary['last'] / mount_goal):.0%}", "confirmed": mount.get("status") == "confirmed"},
         "has_vendor": bool(vendor),
         "vendor_buys": [row(d, "buy" if d["affordable"] else "short", max_price=money(d["max_price"]),
                             vendor=money(d["vendor"]), cost=money(d["cost"]), profit=money(d["profit"]))
