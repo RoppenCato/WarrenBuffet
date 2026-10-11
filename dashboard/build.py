@@ -2,8 +2,11 @@
 
     python -m dashboard.build --sv "<...>\\SavedVariables\\ForeverAH.lua" [--pull]
 
-Writes dashboard/site/index.html (ignored by git). First skeleton: it reads the SavedVariables
-file directly and will move to the Parquet/DuckDB views once they exist (docs/04).
+Writes two pages to dashboard/site/ (ignored by git):
+  index.html   Today  - suggestions from pipeline/planner.py, each with its reason
+  market.html  Market - all tables and charts
+First skeleton: it reads the SavedVariables file directly and will move to the Parquet/DuckDB
+views once they exist (docs/04).
 AHledger numbers are credited in the page footer and beside each use.
 """
 from __future__ import annotations
@@ -12,13 +15,18 @@ import argparse
 import datetime as dt
 import json
 import os
+import time
+from collections import Counter
 from pathlib import Path
 
 import jinja2
 import plotly.offline
 import yaml
 
-from pipeline import ahledger, analytics, savedvars
+# Changed 2026-10-11: planner added for the Today page; money() moved to pipeline/analytics.py.
+# from pipeline import ahledger, analytics, savedvars
+from pipeline import ahledger, analytics, planner, savedvars
+from pipeline.analytics import money
 
 ROOT = Path(__file__).resolve().parent.parent
 # realm + faction -> AHledger market id (D12). Extend at launch.
@@ -28,11 +36,11 @@ DEPTH_ITEMS = [2589, 2770]   # order books shown: Linen Cloth, Copper Ore
 MIN_SOLD = 50                # sold/day for an item to count as liquid
 
 
-def money(copper: float) -> str:
-    copper = round(copper)
-    sign, copper = ("-" if copper < 0 else ""), abs(copper)
-    g, s, c = copper // 10000, copper // 100 % 100, copper % 100
-    return sign + (f"{g:,}g {s:02}s" if g else f"{s}s {c:02}c" if s else f"{c}c")
+# def money(copper: float) -> str:   (moved to pipeline/analytics.py, see the import above)
+#     copper = round(copper)
+#     sign, copper = ("-" if copper < 0 else ""), abs(copper)
+#     g, s, c = copper // 10000, copper // 100 % 100, copper % 100
+#     return sign + (f"{g:,}g {s:02}s" if g else f"{s}s {c:02}c" if s else f"{c}c")
 
 
 def pct(new: float, old: float) -> str:
@@ -84,6 +92,19 @@ def build(sv: Path, market: str | None, pull: bool, out: Path) -> Path:
     worst = sorted(((abs(a - b) / b, i, a, b) for i, a, b in both if sold.get(i, 0) >= MIN_SOLD), reverse=True)[:8]
     wanted = [i for _, i in markets] + [d["item_id"] for d in deals] + [w[1] for w in worst]
     wanted += [r["item"] for r in ledger if isinstance(r.get("item"), int)]
+
+    # -- Today page inputs (added 2026-10-11): holdings, own auctions, calendar -> planner
+    summary = analytics.ledger_summary(ledger)
+    inventories = savedvars.inventory(db)
+    char = max(inventories, key=lambda c: inventories[c].get("bagsTs", 0), default=None)
+    inv = inventories.get(char, {"bags": {}, "bank": {}, "abank": {}, "auctions": []})
+    holdings = Counter(inv["bags"]) + Counter(inv["bank"]) + Counter(inv["abank"])
+    plan = yaml.safe_load((ROOT / "plan" / "calendar.yaml").read_text(encoding="utf-8"))
+    cal = planner.calendar(plan, dt.date.today())
+    sells = planner.sell(dict(holdings), book, ahl, cal["phase"]["id"] if cal["phase"] else None)
+    reposts = planner.repost(inv["auctions"], book)
+    buys = planner.buy(book, ahl, summary["last"])
+    wanted += list(holdings) + [a["item"] for a in inv["auctions"]] + [d["item_id"] for d in buys]
     names.update(ahledger.item_names(market, [i for i in wanted if i not in names], ROOT / "data"))
 
     def name(item_id):
@@ -160,7 +181,7 @@ def build(sv: Path, market: str | None, pull: bool, out: Path) -> Path:
                           "sort": -per_day})
     watchlist.sort(key=lambda r: r["sort"])
 
-    summary = analytics.ledger_summary(ledger)
+    # summary = analytics.ledger_summary(ledger)   (2026-10-11: computed earlier, the planner needs the balance)
     shown = {"post", "cancel", "bought", "sold", "expired", "cancelled", "money"}
     trades = [{"time": when(r["ts"])[11:], "event": r["event"],
                "item": r.get("name") or (name(r["item"]) if r.get("item") else ""),
@@ -171,6 +192,7 @@ def build(sv: Path, market: str | None, pull: bool, out: Path) -> Path:
     bands = dict(p.split(":") for p in (cur.get("tl") or "").split(",") if p)
     hours = (cur["ts"] - prev["ts"]) / 3600 if prev else 0
     context = {
+        "page": "market",   # added 2026-10-11: two pages share base.html.j2
         "title": f"{cur['realm']} · {cur['faction']}", "market": market, "scan_time": when(cur["ts"]),
         "prev_time": when(prev["ts"])[11:] if prev else None, "hours": f"{hours:.1f}",
         "ahl_time": when(ahl_head["ts"])[11:], "attribution": ahledger.ATTRIBUTION, "min_sold": MIN_SOLD,
@@ -197,9 +219,55 @@ def build(sv: Path, market: str | None, pull: bool, out: Path) -> Path:
         "plotlyjs": plotly.offline.get_plotlyjs(),
         "generated": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
+    # ---- Today page (added 2026-10-11): the planner's suggestions, formatted
+    labels = {"sell": "Sell", "hold": "Hold", "keep": "Keep collecting", "price": "Check price",
+              "repost": "Repost", "leave": "Leave", "buy": "Buy", "short": "Over budget"}
+    quiet = {"keep", "price", "leave", "short", "hold"}
+
+    def row(rec, action, **extra):
+        return {"label": labels[action], "quiet": action in quiet, "name": name(rec["item_id"]),
+                "units": rec["units"], "why": rec["why"], **extra}
+
+    age_min = max(0, (time.time() - cur["ts"]) / 60)
+    active = [a for a in inv["auctions"] if a["status"] == 0]
+    nxt = cal["upcoming"][0] if cal["upcoming"] else None
+
+    def event_label(event_id):
+        return event_id.replace("_", " ").capitalize()
+
+    today = {
+        "page": "today", "title": context["title"], "market": market, "attribution": ahledger.ATTRIBUTION,
+        "generated": context["generated"], "scan_time": when(cur["ts"])[11:],
+        "age": f"{age_min / 60:.0f} h {age_min % 60:.0f} min" if age_min >= 60 else f"{age_min:.0f} min",
+        "stale": age_min > 60, "balance": money(summary["last"]),
+        "has_inventory": "bagsTs" in inv, "inv_time": when(inv["bagsTs"])[11:] if "bagsTs" in inv else "",
+        "has_auctions": "auctionsTs" in inv, "auctions_time": when(inv["auctionsTs"])[11:] if "auctionsTs" in inv else "",
+        "inv_err": inv.get("err"),
+        "tiles": [
+            {"label": "Gold", "value": money(summary["last"]), "note": f"{char or 'no character yet'}"},
+            {"label": "Items held", "value": f"{len(holdings):,}", "note": "sellable, in bags and bank"},
+            {"label": "Own auctions", "value": f"{len(active):,}", "note": "active"},
+            {"label": "Next date", "value": f"{nxt['days']} days" if nxt else "-", "note": event_label(nxt["id"]) if nxt else ""},
+        ],
+        "sells": [row(r, r["action"], price=money(r["price"]) if "price" in r else "",
+                      net=money(r["net"]) if r["action"] in ("sell", "hold") else "") for r in sells],
+        "reposts": [row(r, r["action"], price=money(r["price"]), cheapest=money(r["cheapest"]) if r["cheapest"] else "none",
+                        left=f"{r['hours']:.1f} h") for r in reposts],
+        "buys": [row(d, "buy" if d["affordable"] else "short", max_price=money(d["max_price"]), resale=money(d["resale"]),
+                     cost=money(d["cost"]), profit=money(d["profit"])) for d in buys],
+        "phase": {"label": event_label(cal["phase"]["id"]), "focus": cal["phase"].get("focus", "")} if cal["phase"] else None,
+        "upcoming": [{"days": e["days"], "date": e["date"].isoformat(), "label": event_label(e["id"]), "note": e["note"]}
+                     for e in cal["upcoming"]],
+    }
+
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(ROOT / "dashboard" / "templates"), autoescape=True)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(env.get_template("index.html.j2").render(**context), encoding="utf-8")
+    # Changed 2026-10-11: two pages instead of one; `out` is now the site directory.
+    # out.parent.mkdir(parents=True, exist_ok=True)
+    # out.write_text(env.get_template("index.html.j2").render(**context), encoding="utf-8")
+    # return out
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "index.html").write_text(env.get_template("today.html.j2").render(**today), encoding="utf-8")
+    (out / "market.html").write_text(env.get_template("market.html.j2").render(**context), encoding="utf-8")
     return out
 
 
@@ -208,7 +276,8 @@ if __name__ == "__main__":
     parser.add_argument("--sv", default=os.environ.get("FOREVERAH_SV"), help="path to SavedVariables/ForeverAH.lua")
     parser.add_argument("--market", help="AHledger market id; default from realm and faction")
     parser.add_argument("--pull", action="store_true", help="fetch a fresh AHledger pricetable first")
-    parser.add_argument("--out", default=str(ROOT / "dashboard" / "site" / "index.html"))
+    # parser.add_argument("--out", default=str(ROOT / "dashboard" / "site" / "index.html"))   (2026-10-11: a directory now)
+    parser.add_argument("--out", default=str(ROOT / "dashboard" / "site"), help="output directory")
     args = parser.parse_args()
     if not args.sv:
         parser.error("--sv or FOREVERAH_SV is required")
