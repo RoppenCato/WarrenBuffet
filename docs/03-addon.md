@@ -76,9 +76,27 @@ Added 2026-10-11 (D21). The planner can't say what to sell or repost without kno
 Added 2026-10-11 (D31). After each scan the addon records every item the client has data for: `ForeverAHDB.items`, one line per item, `itemID⇥vendor⇥stack⇥classID⇥subclassID⇥name`.
 
 - From `C_Item.GetItemInfo`. `vendor` is what a vendor pays for one unit in copper, 0 if vendors don't buy it.
+- v0.9 adds quality and item level (`itemID⇥vendor⇥stack⇥classID⇥subclassID⇥quality⇥itemLevel⇥name`), needed to value gear by what it disenchants into. Lines saved before that are dropped once and collected again.
 - An item is written once. Items the client has not loaded yet return nothing and are tried again after the next scan, so the table fills over the first few scans.
 - Uses: vendor price as the floor for sell suggestions, listings below vendor price, item names for the pages and for matching news headlines.
 - Unverified in Forever until T11 runs.
+
+### Recipes
+
+Added 2026-10-11 (addon v0.9, D37). When a profession window is open the addon saves the learned recipes: `ForeverAHDB.recipes[char][profession] = { ts, skill, max, list }`, one line per recipe, `recipeID⇥outputItemID⇥min⇥max⇥cooldownSeconds⇥reagentID:qty,…⇥name`.
+
+- From `C_TradeSkillUI`: `GetAllRecipeIDs`, `GetRecipeInfo` (`learned`), `GetRecipeSchematic` (output item, quantity, reagent slots), `GetRecipeCooldown`. Only the basic (fixed) reagents are kept.
+- A linked or guild profession window is ignored. If the functions are missing in this client, one error is saved and the module stays quiet.
+- Recipes that make no item (most enchants) are saved with output 0 and skipped by the planner.
+- Unverified in Forever until T13 runs.
+
+### Disenchant log
+
+Added 2026-10-11 (addon v0.9, D38). Nobody has a disenchant table for Forever, so the addon records the player's own results: `ForeverAHDB.disenchants[i] = ts⇥itemID⇥quality⇥itemLevel⇥classID⇥materialID:qty,…`.
+
+- It compares the bags before the Disenchant cast (spell 13262) and after it: the one item that is gone was disenchanted, what there is more of is what it gave. A result is saved only when exactly one item went missing.
+- The planner does not use these yet. It needs a number of results per quality and level band before a value means anything.
+- Unverified in Forever until T14 runs (the spell id is Classic's).
 
 ### Window (UI)
 

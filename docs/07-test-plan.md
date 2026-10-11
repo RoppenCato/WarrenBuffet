@@ -15,6 +15,8 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T8 | Scheduled hourly pull runs unattended for 48h | PC | ⏳ — scheduled 2026-10-11 18:21, first run ok; check the log on 2026-10-13 evening |
 | T9 | Inventory and own-auctions snapshot | Beta | ⚠️ 2026-10-11 — bags correct, own-auctions query works and does not disturb the scan; bank and a live auction not tested |
 | T10 | Log window, button, several characters | Beta | ⚠️ 2026-10-11 — window built, button moved and remembered, no errors; second character not tested |
+| T13 | Recipes read from the profession window | Beta | ⏳ before Oct 22 — addon v0.9 ready 2026-10-11; needs a character with a crafting profession |
+| T14 | Disenchant results logged | Beta | ⏳ before Oct 22 — addon v0.9 ready 2026-10-11; needs an enchanter and one green item |
 | T12 | In-game plan and tooltip lines | Beta | ⏳ before Oct 22 — addon v0.8 ready 2026-10-11 |
 | T11 | Item reference: names and vendor prices | Beta | ⚠️ 2026-10-11 — works, but one scan gave only 30 % of items; v0.6.1 looks again later, needs one more scan |
 
@@ -206,6 +208,23 @@ Run:
 Check in the file: `ui` has the positions, `uiErr` and `errors` are absent or empty, `trader` is set, the ledger has rows for both characters and none for `?`, `inv` has an entry per character.
 
 Found before the run, 2026-10-11: a new character's first session (16:57) wrote a `gold` row with character `?` and 0 copper, and its login row is missing — Core's login handler failed or never ran, which then skipped the ledger's. v0.5 resolves the name later, isolates handlers and saves errors to the file.
+
+## T13 — Recipes
+
+Added 2026-10-11 with `Recipes.lua` (addon v0.9). Only run offline so far.
+
+Run, on a character with a crafting profession and a few recipes: `/reload`, open the profession window, wait two seconds, close it. The Log tab should say "<Profession>: N recipes saved for the planner". `/reload`.
+- Check in the file: `recipes[char][profession]` lists the learned recipes with the right output item and materials (compare two with the game); `errors` has no `recipes` line.
+- Pass: the recipes are there and right. Then Refresh the dashboard: the Craft section lists what clears its materials cost.
+- If `errors` says the recipe functions are missing, this client uses another profession API and the module needs rewriting — send the line.
+
+## T14 — Disenchant log
+
+Added 2026-10-11 with `Disenchant.lua` (addon v0.9). Only run offline so far.
+
+Run, on an enchanter: disenchant one green item and loot the result. The Log tab should say "Disenchanted <item>: <materials>". `/reload`.
+- Check in the file: one `disenchants` line with the item, its quality and level, and the materials received.
+- If nothing is logged: the Disenchant spell has another id in Forever. `/dump C_Spell.GetSpellInfo("Disenchant")` shows it.
 
 ## T12 — In-game plan and tooltips
 
