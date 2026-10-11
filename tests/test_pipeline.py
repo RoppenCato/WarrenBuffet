@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from pipeline import ahledger, analytics, planner  # noqa: E402
+from pipeline import ahledger, analytics, news, planner  # noqa: E402
 
 # (item, count, buyout total, minBid, bid, timeLeft): 10 @ 100, 10 @ 200, 20 @ 300, one bid-only row
 ROWS = [(1, 10, 1000, 0, 0, 3), (1, 10, 2000, 0, 0, 3), (1, 20, 6000, 0, 0, 4), (1, 5, 0, 50, 0, 1)]
@@ -111,6 +111,43 @@ def test_planner_calendar():
     assert planner.calendar(plan, dt.date(2026, 11, 6))["phase"]["id"] == "sell_to_levelers"
     assert planner.calendar(plan, dt.date(2026, 11, 20))["phase"]["id"] == "levelers_to_60"
     assert planner.calendar(plan, dt.date(2026, 12, 5))["phase"] is None
+
+
+FEED = """<?xml version="1.0"?><rss version="2.0"><channel><title>Wowhead News</title>
+<item><title>Crafted Wand Sell Prices Partially Un-Nerfed in Latest Forever Build</title>
+<link>https://example.test/news=1/wands</link><pubDate>Thu, 08 Oct 2026 17:13:00 -0500</pubDate>
+<description><![CDATA[<p>After nerfing all crafted <b>Enchanting</b> wands, Blizzard un-nerfed them. Continue reading \u00bb</p>]]></description></item>
+<item><title>Linen Cloth Drop Rates Doubled</title><link>https://example.test/news=2/linen</link>
+<pubDate>Fri, 09 Oct 2026 10:00:00 -0500</pubDate><description>More cloth for everyone.</description></item>
+<item><title>How Does Elemental Shaman Look in WoW: Forever?</title><link>https://example.test/news=3/shaman</link>
+<pubDate>Fri, 09 Oct 2026 15:03:00 -0500</pubDate><description>A look at the class before launch.</description></item>
+<item><title>Wolfshead Helm Nerfed</title><link>https://example.test/news=4/helm</link>
+<pubDate>Fri, 09 Oct 2026 19:58:00 -0500</pubDate><description>Now weaker.</description></item>
+</channel></rss>"""
+
+
+def test_news_parse_flag_pending():
+    import datetime as dt
+    import tempfile
+    stories = news.parse_feed(FEED)
+    assert [s["link"][-5:] for s in stories] == ["wands", "linen", "haman", "/helm"]
+    assert stories[0]["published"] == "2026-10-08T22:13:00+00:00"
+    assert stories[0]["summary"] == "After nerfing all crafted Enchanting wands, Blizzard un-nerfed them."   # tags and the tail gone
+
+    names = ["Linen Cloth", "Copper Ore"]
+    assert news.flag(stories[0], names) == ["prices: sell prices", "crafting: crafted, enchanting", "balance: nerfing, un-nerfed"]
+    assert news.flag(stories[1], names) == ["item: Linen Cloth", "supply: drop rates"]
+    assert news.flag(stories[2], names) == []        # "ore" inside "Forever" and "before" is not a match
+    assert news.flag(stories[3], names) == ["balance: nerfed"]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        log = Path(tmp) / "news-log.yaml"
+        day = dt.date(2026, 10, 11)
+        assert [s["link"][-5:] for s in news.flagged(stories, names, log=log, today=day)] == ["linen", "wands", "/helm"]
+        assert [s["link"][-5:] for s in news.pending(stories, names, log=log, today=day)] == ["linen", "wands"]   # helm is weak
+        log.write_text("reviewed:\n  - {link: 'https://example.test/news=2/linen', verdict: relevant}\n", encoding="utf-8")
+        assert [s["link"][-5:] for s in news.pending(stories, names, log=log, today=day)] == ["wands"]
+        assert news.pending(stories, names, log=log, today=dt.date(2026, 11, 30)) == []   # older than 14 days
 
 
 if __name__ == "__main__":
