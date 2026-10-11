@@ -48,6 +48,10 @@ def merge(dbs: list[dict]) -> dict:
         for line in (db.get("items") or "").split("\n"):
             if line:
                 lines.setdefault(line.split("\t", 1)[0], line)
+        if db.get("vendors"):   # added 2026-10-11 (v0.10): per item, the account read last wins
+            known = {line.split("\t", 1)[0]: line for line in (out.get("vendors") or "").split("\n") if line}
+            known.update({line.split("\t", 1)[0]: line for line in db["vendors"].split("\n") if line})
+            out["vendors"] = "".join(line + "\n" for line in known.values())
         for key in ("trader", "build", "missing", "uiErr"):
             if db.get(key) and not out.get(key):
                 out[key] = db[key]
@@ -166,6 +170,18 @@ def items(db: dict) -> dict[int, dict]:
     return out
 
 
+def vendors(db: dict) -> dict[int, dict]:
+    """What vendors charge, saved by Vendors.lua: {item_id: {price (copper per unit), stack,
+    available (-1 = unlimited stock, else how many were left), vendor, zone}}."""
+    out = {}
+    for line in (db.get("vendors") or "").split("\n"):
+        if line:
+            item_id, price, stack, available, vendor, zone = line.split("\t")
+            out[int(item_id)] = {"price": int(price) / max(1, int(stack)), "stack": int(stack),
+                                 "available": int(available), "vendor": vendor, "zone": zone}
+    return out
+
+
 def recipes(db: dict) -> list[dict]:
     """Learned recipes saved by Recipes.lua, one dict per character and recipe:
     char, profession, skill, ts, recipe_id, name, item_id (0 = makes no item), qty_min, qty_max,
@@ -252,6 +268,7 @@ def report(path) -> None:
     for (char, profession), count in sorted(known.items()):
         print(f"recipes {char}: {profession}, {count} learned")
     print(f"disenchants logged: {len(disenchants(db))}")
+    print(f"vendor prices: {len(vendors(db))} items")   # added 2026-10-11 (v0.10)
     # Added 2026-10-11: holdings saved by Inventory.lua.
     for char, inv in inventory(db).items():
         print(f"inventory {char}: {len(inv['bags'])} items in bags, {len(inv['bank'])} in bank, "

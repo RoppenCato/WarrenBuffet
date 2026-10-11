@@ -157,7 +157,40 @@ def below_vendor(books, vendor, balance: int = 0, limit: int = 8) -> list[dict]:
     return out[:limit]
 
 
-def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=None, now: int | None = None) -> list[dict]:
+def vendor_flips(vendors: dict, books, sold_per_day=None, balance: int = 0, limit: int = 8) -> list[dict]:
+    """Things a vendor sells for less than they list for on the AH (playbook 7). Limited-stock
+    items are the classic case; for unlimited stock a small batch is suggested, sized to what
+    sells. Profit is after the AH cut and one deposit. This is a resale bet, not free money: if it
+    does not sell, a vendor gives back only a fraction."""
+    sold_per_day = sold_per_day or {}
+    money, out = analytics.money, []
+    for item_id, v in vendors.items():
+        book = books.get(item_id)
+        if not book:
+            continue
+        price, resale, sold = v["price"], book[0][0], sold_per_day.get(item_id) or 0
+        each = resale * (1 - analytics.AH_CUT) - price
+        if v["available"] >= 0:
+            units = v["available"]
+        else:
+            units = max(1, int(min(20, sold / 4))) if sold else 5
+        profit = units * each - analytics.MIN_DEPOSIT
+        if units <= 0 or each < price * MIN_CRAFT_RETURN or profit < MIN_FLIP_PROFIT:
+            continue
+        cost = units * price
+        why = (f"{v['vendor']}" + (f" in {v['zone']}" if v["zone"] else "") + f" sells it for {money(price)}"
+               + (f", {v['available']} in stock when last seen" if v["available"] >= 0 else "")
+               + f"; the cheapest on the AH is {money(resale)}." + (f" About {sold:,.0f} sell a day." if sold else ""))
+        out.append({"item_id": item_id, "units": units, "cost": cost, "max_price": round(price), "resale": resale,
+                    "profit": profit, "affordable": cost <= balance, "action": "vendor_buy", "why": why})
+    out.sort(key=lambda d: (not d["affordable"], -d["profit"]))
+    return out[:limit]
+
+
+# def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=None, now: int | None = None) -> list[dict]:
+# (2026-10-11, v0.10: `charges` = what vendors charge per unit, from the vendor log)
+def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=None, now: int | None = None,
+          charges=None) -> list[dict]:
     """Recipes worth crafting for sale (playbook 3, craft_margin).
 
     Per craft: the product at the cheapest listing (it has to undercut that to sell), minus the AH
@@ -166,7 +199,7 @@ def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=N
     we cannot price at all, or that make no item, are left out.
     `raw` is what the same materials would bring if sold as they are - the question a gatherer
     actually has. Recipes several characters know are listed once."""
-    vendor, holdings, sold_per_day = vendor or {}, holdings or {}, sold_per_day or {}
+    vendor, holdings, sold_per_day, charges = vendor or {}, holdings or {}, sold_per_day or {}, charges or {}
     money, out, seen = analytics.money, [], set()
     for r in recipes:
         book = books.get(r["item_id"])
@@ -177,7 +210,13 @@ def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=N
         cost, raw, guessed, unknown = 0, 0, [], False
         for item_id, qty in r["reagents"].items():
             material = books.get(item_id)
-            if material:
+            # Added 2026-10-11 (v0.10): a material a vendor sells is worth what the vendor charges,
+            # even when someone lists it on the AH for more. It is never "sold raw", so it counts
+            # the same on both sides.
+            if item_id in charges and (not material or charges[item_id] <= material[0][0]):
+                cost += charges[item_id] * qty
+                raw += charges[item_id] * qty
+            elif material:
                 cost += material[0][0] * qty
                 raw += material[0][0] * qty * (1 - analytics.AH_CUT)
             elif vendor.get(item_id):

@@ -184,8 +184,16 @@ def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None =
     vendor_buys = planner.below_vendor(book, vendor, budget) if launch else []
     wanted += [d["item_id"] for d in vendor_buys]
     # Crafting (added 2026-10-11, D37): recipes the characters know, priced from this scan.
-    crafts = planner.craft(savedvars.recipes(db), book, vendor, dict(holdings), sold, now=int(time.time()))
+    # crafts = planner.craft(savedvars.recipes(db), book, vendor, dict(holdings), sold, now=int(time.time()))
+    # (2026-10-11, v0.10: the vendor log - what vendors charge - prices vendor-sold materials, and
+    # adds things worth buying from a vendor to resell. Not in launch week, which stays strict.)
+    vendor_log = savedvars.vendors(db)
+    charges = {i: v["price"] for i, v in vendor_log.items() if v["available"] < 0}
+    crafts = planner.craft(savedvars.recipes(db), book, vendor, dict(holdings), sold, now=int(time.time()), charges=charges)
     wanted += [d["item_id"] for d in crafts]
+    if not launch:
+        buys = sorted(buys + planner.vendor_flips(vendor_log, book, sold, budget), key=lambda d: (not d["affordable"], -d["profit"]))[:8]
+        wanted += [d["item_id"] for d in buys]
     wanted += list(holdings) + [a["item"] for a in inv["auctions"]] + [d["item_id"] for d in buys]
     names.update(ahledger.item_names(market, [i for i in wanted if i not in names], ROOT / "data"))
 
@@ -307,6 +315,7 @@ def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None =
     mount_goal = mount.get("gold", planner.MOUNT_FUND / 10000) * 10000
     labels = {"vendor": "Vendor it", "choice": "Your call",   # launch week actions, added 2026-10-11
               "craft": "Craft",                               # added 2026-10-11 (v0.9)
+              "vendor_buy": "Buy at vendor",                  # added 2026-10-11 (v0.10)
               "sell": "Sell", "hold": "Hold", "keep": "Keep collecting", "price": "Check price",
               "repost": "Repost", "leave": "Leave", "buy": "Buy", "short": "Over budget"}
     quiet = {"keep", "price", "leave", "short", "hold"}
@@ -388,7 +397,8 @@ def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None =
                         for d in vendor_buys],
         "reposts": [row(r, r["action"], price=money(r["price"]), cheapest=money(r["cheapest"]) if r["cheapest"] else "none",
                         left=f"{r['hours']:.1f} h", char=r["char"]) for r in reposts],
-        "buys": [row(d, "buy" if d["affordable"] else "short", max_price=money(d["max_price"]), resale=money(d["resale"]),
+        # "buys": [row(d, "buy" if d["affordable"] else "short", ...   (2026-10-11, v0.10: a row may name its own action)
+        "buys": [row(d, d.get("action", "buy") if d["affordable"] else "short", max_price=money(d["max_price"]), resale=money(d["resale"]),
                      cost=money(d["cost"]), profit=money(d["profit"])) for d in buys],
         "phase": {"label": event_label(cal["phase"]["id"]), "focus": cal["phase"].get("focus", "")} if cal["phase"] else None,
         "upcoming": [{"days": e["days"], "date": e["date"].isoformat(), "label": event_label(e["id"]), "note": e["note"]}

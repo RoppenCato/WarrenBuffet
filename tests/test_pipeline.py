@@ -127,6 +127,29 @@ def test_craft_margins():
     assert "crafted they bring 19s 00c, sold as they are 16s 15c" in stock[0]["why"]
     assert planner.craft(thin, books, holdings={2589: 20}) == []          # 10 bolts gain 57c: not worth the clicks
 
+    # Added 2026-10-11 (v0.10): what a vendor charges beats an AH listing of the same material.
+    books = {4238: [(600, 30)], 2996: [(100, 500)], 2320: [(19, 40)]}      # someone lists thread at 19c
+    bag = [recipe(3915, "Linen Bag", 4238, {2996: 3, 2320: 3})]
+    assert planner.craft(bag, books)[0]["cost"] == 300 + 3 * 19
+    priced = planner.craft(bag, books, charges={2320: 10})[0]              # the vendor sells it for 10c
+    assert priced["cost"] == 300 + 3 * 10 and priced["estimated"] is False
+
+
+def test_vendor_flips():
+    vendors = {
+        1: {"price": 2000, "stack": 1, "available": 2, "vendor": "Bliztik", "zone": "Booty Bay"},     # limited recipe
+        2: {"price": 10, "stack": 1, "available": -1, "vendor": "Trade Goods Tom", "zone": "Orgrimmar"},  # thread
+        3: {"price": 500, "stack": 1, "available": -1, "vendor": "Tom", "zone": ""},                  # resells well
+        4: {"price": 900, "stack": 1, "available": 0, "vendor": "Tom", "zone": ""},                   # sold out
+    }
+    books = {1: [(9000, 3)], 2: [(19, 40)], 3: [(900, 10)], 4: [(5000, 1)]}
+    flips = planner.vendor_flips(vendors, books, sold_per_day={3: 200}, balance=4500)
+    assert [(d["item_id"], d["units"], d["affordable"]) for d in flips] == [(1, 2, True), (3, 20, False)]
+    recipe_flip = flips[0]
+    assert recipe_flip["profit"] == 2 * (9000 * 0.95 - 2000) - 100 and recipe_flip["action"] == "vendor_buy"
+    assert "Bliztik in Booty Bay sells it for 20s 00c, 2 in stock when last seen" in recipe_flip["why"]
+    assert "About 200 sell a day" in flips[1]["why"]
+
 
 def test_plan_file_is_valid_lua():
     import tempfile

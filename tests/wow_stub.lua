@@ -412,7 +412,22 @@ date = os.date
 -- Changed 2026-10-11: the name can be missing early in a login (PLAYER_NAME = nil in a test).
 -- function UnitName() return "Tester" end
 PLAYER_NAME = "Tester"
-function UnitName() return PLAYER_NAME end
+-- function UnitName() return PLAYER_NAME end   (2026-10-11, v0.10: "npc" is the open vendor)
+NPC_NAME = nil
+function UnitName(unit)
+  if unit == "npc" then return NPC_NAME end
+  return PLAYER_NAME
+end
+
+-- Added 2026-10-11 (v0.10) for Vendors.lua: an open vendor window.
+MERCHANT = {}   -- { {itemID, price, stack, available, extendedCost}, ... }
+function GetMerchantNumItems() return #MERCHANT end
+function GetMerchantItemID(index) return MERCHANT[index][1] end
+C_MerchantFrame = { GetItemInfo = function(index)
+  if type(index) ~= "number" then error("bad argument #1 to 'GetItemInfo'") end
+  local m = MERCHANT[index]
+  return { price = m[2], stackCount = m[3], numAvailable = m[4], hasExtendedCost = m[5] or false }
+end }
 ERRORS = {}
 function geterrorhandler() return function(text) ERRORS[#ERRORS + 1] = text end end
 function GetRealmName() return "Beta Realm" end

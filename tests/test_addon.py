@@ -475,6 +475,34 @@ def test_disenchant_results_are_logged():
     assert len(savedvars.disenchants(game.db())) == 1
 
 
+def test_vendor_prices_are_recorded_at_the_vendor():
+    game = Game()
+    row = game.lua.table_from
+
+    def open_vendor(name, items):
+        game.g.NPC_NAME = name
+        game.g.MERCHANT = row([row(i) for i in items])
+        game.fire("MERCHANT_SHOW")
+        game.fire("MERCHANT_UPDATE")             # comes in bursts
+        game.g.Advance(0.5)
+        game.frames(1)
+
+    open_vendor("Trade Goods Tom", [[2320, 10, 1, -1], [2880, 100, 1, -1], [4340, 350, 5, -1], [6217, 124, 1, 2],
+                                    [30000, 0, 1, -1, True]])               # the last one costs a token, not money
+    vendors = savedvars.vendors(game.db())
+    assert sorted(vendors) == [2320, 2880, 4340, 6217]
+    assert vendors[2320] == {"price": 10, "stack": 1, "available": -1, "vendor": "Trade Goods Tom", "zone": "Orgrimmar"}
+    assert vendors[4340]["price"] == 70 and vendors[4340]["stack"] == 5       # 3s 50c for five: 70c each
+    assert vendors[6217]["available"] == 2                                    # limited stock
+    assert sum("Trade Goods Tom: 4 vendor prices saved" in p for p in game.printed()) == 1
+
+    open_vendor("Trade Goods Tom", [[2320, 10, 1, -1], [6217, 124, 1, 0]])   # same vendor later: the rod sold out
+    vendors = savedvars.vendors(game.db())
+    assert vendors[6217]["available"] == 0 and len(vendors) == 4              # updated, nothing lost
+    assert sum("vendor prices saved" in p for p in game.printed()) == 1       # nothing new, nothing said
+    assert "errors" not in game.db() or game.db()["errors"] == {}
+
+
 def test_ledger_mail_is_logged_once():
     game = Game()
     now = game.g.GetServerTime()

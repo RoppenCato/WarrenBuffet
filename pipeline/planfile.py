@@ -64,7 +64,8 @@ def make(scan_ts: int, labels: dict, name, sells=(), reposts=(), buys=(), books=
                    "profit": round(d["profit"]), "cost": round(d["cost"]), "why": d["why"]} for d in list(crafts)[:ROWS]],
         "auctions": [{"act": act(r), "item": name(r["item_id"]), "id": r["item_id"], "units": r["units"],
                       "price": r["price"], "cheapest": r["cheapest"] or 0, "why": r["why"]} for r in list(reposts)[:ROWS]],
-        "buy": [{"act": act(d, "buy" if d["affordable"] else "short"), "item": name(d["item_id"]), "id": d["item_id"],
+        # "buy": [{"act": act(d, "buy" if d["affordable"] else "short"), ...   (2026-10-11, v0.10: a row may name its own action)
+        "buy": [{"act": act(d, d.get("action", "buy") if d["affordable"] else "short"), "item": name(d["item_id"]), "id": d["item_id"],
                  "units": d["units"], "max": d["max_price"], "cost": round(d["cost"]), "profit": round(d["profit"]),
                  "why": d["why"]} for d in list(buys)[:ROWS]],
         # per item, for tooltips: cheapest listing and median in the scan, and what the plan says
