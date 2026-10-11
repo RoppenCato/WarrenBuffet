@@ -23,6 +23,7 @@ MOUNT_FUND = 120 * 10000                # level 40: 100g riding + 20g mount (rep
 KEEP_CATEGORIES = {"stock_while_leveling", "endgame_mats"}   # watchlist categories wanted at 60
 TREND = 0.10                            # a 10 % move between two scans counts as rising or falling
 MIN_VENDOR_PROFIT = 50                  # copper; smaller below-vendor lots are not worth the walk
+MIN_FLIP_PROFIT = 1000                  # copper; added 2026-10-11 - the real plan suggested a 19c flip
 
 
 def sell(holdings: dict[int, int], books, ahl, phase: str | None = None) -> list[dict]:
@@ -180,9 +181,15 @@ def buy(books, ahl, balance: int, limit: int = 5) -> list[dict]:
     sold = {i: p.sold_per_day or 0 for i, p in ahl.items()}
     out = []
     for d in analytics.underpriced(books, resale, sold, min_sold=MIN_SOLD):
+        # Changed 2026-10-11: skip flips worth under 10s, and "1 unit" instead of "1 units".
+        # d = dict(d, max_price=int(d["resale"] * 0.7), affordable=d["cost"] <= balance,
+        #          why=f"{d['units']:,} units listed 30 % or more under both today's median and the 7-day median; "
+        #              f"about {d['sold_per_day']:,.0f} sell a day.")
+        if d["profit"] < MIN_FLIP_PROFIT:
+            continue
         d = dict(d, max_price=int(d["resale"] * 0.7), affordable=d["cost"] <= balance,
-                 why=f"{d['units']:,} units listed 30 % or more under both today's median and the 7-day median; "
-                     f"about {d['sold_per_day']:,.0f} sell a day.")
+                 why=f"{d['units']:,} unit{'s' if d['units'] != 1 else ''} listed 30 % or more under both today's "
+                     f"median and the 7-day median; about {d['sold_per_day']:,.0f} sell a day.")
         out.append(d)
     out.sort(key=lambda d: (not d["affordable"], -d["profit"]))
     return out[:limit]

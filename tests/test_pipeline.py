@@ -164,10 +164,13 @@ def test_planner_repost_and_buy():
     assert [(r["item_id"], r["action"]) for r in recs] == [(2, "repost"), (1, "leave"), (3, "leave")]
     assert "Undercut by 50%" in recs[0]["why"] and recs[0]["hours"] == 2
 
-    books = {1: [(100, 10), (200, 10), (300, 20)], 2: [(10, 40), (200, 100), (210, 100)]}
-    ahl = {1: price(200, 100), 2: price(200, 1000)}
+    # Changed 2026-10-11: flips under 10s are dropped, so item 1's lot grew and item 3 was added.
+    # books = {1: [(100, 10), (200, 10), (300, 20)], 2: [(10, 40), (200, 100), (210, 100)]}
+    # ahl = {1: price(200, 100), 2: price(200, 1000)}
+    books = {1: [(100, 20), (200, 10), (300, 20)], 2: [(10, 40), (200, 100), (210, 100)], 3: [(15, 1), (140, 9), (150, 9)]}
+    ahl = {1: price(200, 100), 2: price(200, 1000), 3: price(140, 8000)}
     deals = planner.buy(books, ahl, balance=500)
-    assert [(d["item_id"], d["affordable"]) for d in deals] == [(2, True), (1, False)]   # affordable first
+    assert [(d["item_id"], d["affordable"]) for d in deals] == [(2, True), (1, False)]   # affordable first; item 3 earns 18c
     assert deals[0]["max_price"] == 140 and "40 units" in deals[0]["why"]
 
 
