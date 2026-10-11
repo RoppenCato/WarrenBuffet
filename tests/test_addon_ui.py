@@ -170,6 +170,71 @@ def test_trader_and_debug_commands():
     assert any("hasAllInfo misses" in line for line in lines(game, "WINDOW"))
 
 
+def make_plan(scan_ts):
+    import tempfile
+    from pathlib import Path
+    from pipeline import planfile
+    labels = {"sell": "Sell", "keep": "Keep collecting", "repost": "Repost", "buy": "Buy", "short": "Over budget"}
+    names = {2770: "Copper Ore", 2589: "Linen Cloth", 4235: "Heavy Hide"}
+    plan = planfile.make(
+        scan_ts=scan_ts, labels=labels, name=names.get, headline="Launch week, day 2 of 7", mode="launch",
+        sells=[{"action": "sell", "item_id": 2770, "units": 120, "price": 141, "net": 15900, "why": "Supply is tight."},
+               {"action": "keep", "item_id": 2589, "units": 14, "price": 17, "net": 0, "why": "A post costs more than it is worth."}],
+        reposts=[{"action": "repost", "item_id": 2770, "units": 40, "price": 190, "cheapest": 141, "why": "Undercut by 35%."}],
+        buys=[{"item_id": 4235, "units": 30, "max_price": 3154, "cost": 76600, "profit": 51600, "affordable": False,
+               "why": "Listed well under its usual price."}],
+        books={2770: [(141, 10)], 2589: [(17, 5)]})
+    with tempfile.TemporaryDirectory() as tmp:
+        return planfile.write(plan, Path(tmp) / planfile.NAME).read_text(encoding="utf-8")
+
+
+def plan_lines(game):
+    return list(game.g.PlanLines().values())
+
+
+def test_plan_view_shows_the_pipeline_plan():
+    game = Game(plan=make_plan(scan_ts=1760180000 - 600))
+    text = "\n".join(plan_lines(game))
+    assert "Launch week, day 2 of 7" in text and "A newer scan exists" not in text
+    assert "Sell|r  Copper Ore x120  at 1s 41c  ->  1g 59s 0c" in text and "Supply is tight." in text
+    assert "Keep collecting|r  Linen Cloth x14  at 17c" in text
+    assert "Repost|r  Copper Ore x40  yours 1s 90c, cheapest 1s 41c" in text
+    assert "Over budget|r  Heavy Hide x30  at 31s 54c or less  (7g 66s 0c for +5g 16s 0c)" in text
+    assert lines(game, "WINDOW") == []                   # the plan is not log output
+
+    click(game)                                          # opens on the plan when there is one
+    assert game.lua.eval("ForeverAHWindow.planLines:IsShown()") is True and game.db()["ui"]["tab"] == "plan"
+    game.fire("AUCTION_HOUSE_AUCTION_CREATED", 7)        # a ledger line while looking at the plan
+    assert label(game) == "1"
+    game.lua.execute('NS.SetTab("log")')
+    assert label(game) == "" and game.lua.eval("ForeverAHWindow.planLines:IsShown()") is False
+
+    click(game)                                          # close; a scan then opens the window on the log
+    game.lua.execute('NS.SetTab("plan")')
+    game.set_auctions(make_auctions(50, 5))
+    game.open_ah()
+    assert shown(game) is True and game.db()["ui"]["tab"] == "log"
+    game.fire("PLAYER_LOGIN")                            # after a /reload the plan is older than the scan
+    assert any("A newer scan exists" in line for line in plan_lines(game))
+
+
+def test_tooltip_lines_come_from_the_plan():
+    game = Game(plan=make_plan(scan_ts=1760180000 - 600))
+    info = game.lua.table_from
+    game.g.ITEM_INFO = info({2770: info(["Copper Ore", 5, 20, 7, 7])})
+    assert list(game.g.ShowItemTooltip(2770).values()) == ["AH cheapest: 1s 41c", "Vendor pays: 5c", "ForeverAH plan: Sell"]
+    assert list(game.g.ShowItemTooltip(2589).values()) == ["AH cheapest: 17c", "ForeverAH plan: Keep collecting"]   # vendor price not loaded
+    assert list(game.g.ShowItemTooltip(4235).values()) == []           # not in the scan, not held
+    assert "errors" not in game.db() or game.db()["errors"] == {}
+
+
+def test_no_plan_yet():
+    game = Game()
+    assert plan_lines(game)[0] == "No plan yet."
+    assert game.db()["ui"]["tab"] == "log"
+    assert list(game.g.ShowItemTooltip(2770).values()) == []
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

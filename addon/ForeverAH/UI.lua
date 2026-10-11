@@ -25,6 +25,10 @@ local GREY, SOFT = "|cff8c8c8c", "|cffc8c8c8"
 local window, log, status, button, count
 local onMinimap = false
 local unread = 0
+-- Added 2026-10-11 (v0.8): the window has two views, the plan (Plan.lua) and the log.
+local planView
+local tabs = {}      -- view name -> the FontString of its tab
+local tab = "log"
 
 local function SetCount()
   if not count then return end
@@ -33,6 +37,35 @@ local function SetCount()
   else
     count:SetText(unread > 0 and ("FAH " .. unread) or "FAH")
   end
+  if tabs.log then tabs.log:SetText(unread > 0 and ("Log (" .. unread .. ")") or "Log") end   -- v0.8
+end
+
+-- Log lines count as read once the log view is on screen.
+local function Seen()
+  if window and window:IsShown() and tab == "log" then
+    unread = 0
+    SetCount()
+  end
+end
+
+function ns.SetTab(name)
+  if not log then return end
+  tab = name
+  log:SetShown(name == "log")
+  planView:SetShown(name == "plan")
+  for view, label in pairs(tabs) do
+    if view == name then label:SetTextColor(1, 0.82, 0) else label:SetTextColor(0.6, 0.6, 0.6) end
+  end
+  if ns.db then ns.db.ui.tab = name end
+  Seen()
+end
+
+-- Plan.lua hands over the plan as ready-made lines.
+function ns.SetPlan(lines)
+  if not planView then return end
+  planView:Clear()
+  for _, line in ipairs(lines) do planView:AddMessage(line) end
+  planView:ScrollToTop()
 end
 
 -- One line on where the data stands: shown under the title and in the button's tooltip.
@@ -80,10 +113,12 @@ function ns.ShowWindow(show)
   if not window then return end
   window:SetShown(show)
   if ns.db then ns.db.ui.shown = show end
-  if show then
-    unread = 0
-    SetCount()
-  end
+  -- Changed 2026-10-11 (v0.8): opening the window on the plan view does not mark the log read.
+  -- if show then
+  --   unread = 0
+  --   SetCount()
+  -- end
+  Seen()
 end
 
 -- Adds a line to the window. Returns false when there is no window, so the caller can fall
@@ -91,13 +126,22 @@ end
 function ns.Log(msg, quiet)
   if not log then return false end
   log:AddMessage(GREY .. date("%H:%M") .. "|r  " .. (quiet and SOFT .. msg .. "|r" or msg))
-  if not window:IsShown() then
-    if quiet or (ns.db and ns.db.ui.quiet) then
-      unread = unread + 1
-      SetCount()
-    else
-      ns.ShowWindow(true)
-    end
+  -- Changed 2026-10-11 (v0.8): a line is also unread when the window is open on the plan view,
+  -- and a scan message that opens the window opens it on the log.
+  -- if not window:IsShown() then
+  --   if quiet or (ns.db and ns.db.ui.quiet) then
+  --     unread = unread + 1
+  --     SetCount()
+  --   else
+  --     ns.ShowWindow(true)
+  --   end
+  -- end
+  if not window:IsShown() and not quiet and not (ns.db and ns.db.ui.quiet) then
+    ns.SetTab("log")
+    ns.ShowWindow(true)
+  elseif not window:IsShown() or tab ~= "log" then
+    unread = unread + 1
+    SetCount()
   end
   return true
 end
@@ -165,6 +209,18 @@ local function BuildPanelWindow()
   return frame
 end
 
+-- Added 2026-10-11 (v0.8): a text tab in the title bar.
+local function Tab(frame, text, x, name)
+  local b = CreateFrame("Button", nil, frame)
+  b:SetSize(56, 18)
+  b:SetPoint("TOPLEFT", frame, "TOPLEFT", x, -7)
+  local label = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  label:SetAllPoints()
+  label:SetText(text)
+  b:SetScript("OnClick", function() ns.SetTab(name) end)
+  return label
+end
+
 local function BuildWindow()
   local ok, frame = pcall(BuildPanelWindow)
   if not ok then
@@ -173,7 +229,8 @@ local function BuildWindow()
     frame = BuildPlainWindow()
   end
   ForeverAHWindow = frame
-  frame:SetSize(470, 200)
+  -- frame:SetSize(470, 200)   (2026-10-11, v0.8: taller, the plan needs the room)
+  frame:SetSize(470, 250)
   frame:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
   frame:SetFrameStrata("HIGH")    -- above the auction house and other panels
   frame:SetToplevel(true)
@@ -204,6 +261,12 @@ local function BuildWindow()
   end)
 
   window = frame
+  -- Added 2026-10-11 (v0.8): the plan view and the two tabs.
+  planView = AddLog(frame, -54)
+  planView:Hide()
+  frame.planLines = planView   -- so the plan view can be found from outside (tests, /fstack)
+  tabs.plan = Tab(frame, "Plan", 100, "plan")
+  tabs.log = Tab(frame, "Log", 160, "log")
   log = AddLog(frame, -54)   -- last: a half-built window must not swallow messages
 end
 
@@ -331,6 +394,8 @@ ns.On("PLAYER_LOGIN", function()
     RestorePoint("button", button)
   end
   RestorePoint("window", window)
+  -- Added 2026-10-11 (v0.8): start on the plan when there is one, else on the log.
+  ns.SetTab(ns.db.ui.tab or (type(ForeverAH_Plan) == "table" and "plan" or "log"))
   window:SetShown(ns.db.ui.shown == true)
 end)
 

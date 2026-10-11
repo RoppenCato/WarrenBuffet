@@ -81,10 +81,12 @@ local FRAME = REGION .. " RegisterEvent SetScript SetMovable EnableMouse Registe
 local METHODS = {
   Frame = FRAME,
   Button = FRAME .. " RegisterForClicks SetHighlightTexture",
-  ScrollingMessageFrame = FRAME .. " AddMessage SetFontObject SetJustifyH SetFading SetMaxLines ScrollUp ScrollDown",
+  -- 2026-10-11 (v0.8): Clear, ScrollToTop, SetTextColor, AddDoubleLine added for the plan view
+  ScrollingMessageFrame = FRAME .. " AddMessage SetFontObject SetJustifyH SetFading SetMaxLines ScrollUp ScrollDown"
+    .. " Clear ScrollToTop",
   Texture = REGION .. " SetColorTexture SetTexture SetTexCoord",
-  FontString = REGION .. " SetText SetJustifyH",
-  GameTooltip = "SetOwner SetText AddLine Show Hide",
+  FontString = REGION .. " SetText SetJustifyH SetTextColor",
+  GameTooltip = "SetOwner SetText AddLine AddDoubleLine Show Hide",
 }
 local TEMPLATES = { BackdropTemplate = " SetBackdrop SetBackdropColor SetBackdropBorderColor", UIPanelCloseButton = "" }
 local FONTS = { GameFontNormal = true, GameFontNormalSmall = true, GameFontHighlightSmall = true, NumberFontNormalSmall = true }
@@ -119,10 +121,21 @@ function impl:SetText(text) self.text = text end
 function impl:ClearAllPoints() self.point = nil end
 function impl:SetPoint(point, relativeTo, relativePoint, x, y) self.point = { point, relativeTo, relativePoint, x, y } end
 function impl:GetPoint() return unpack(self.point, 1, 5) end
+-- Changed 2026-10-11 (v0.8): every message frame keeps its own lines; only the log (the last
+-- one the window creates, named below) also feeds WINDOW and PRINTED.
+-- function impl:AddMessage(text)
+--   WINDOW[#WINDOW + 1] = text
+--   PRINTED[#PRINTED + 1] = text
+-- end
 function impl:AddMessage(text)
+  self.lines[#self.lines + 1] = text
+  if self.isPlan then return end
   WINDOW[#WINDOW + 1] = text
   PRINTED[#PRINTED + 1] = text
 end
+function impl:Clear() self.lines = {} end
+function impl:AddLine(text) self.lines[#self.lines + 1] = text end
+function impl:AddDoubleLine(left, right) self.lines[#self.lines + 1] = left .. ": " .. right end
 function impl:CreateTexture() return Widget("Texture") end
 function impl:CreateFontString(_, _, font)
   if not FONTS[font] then error("unknown font object " .. tostring(font)) end
@@ -137,9 +150,13 @@ function Widget(kind, extra)
   -- for name in METHODS[kind]:gmatch("%S+") do allowed[name] = true end
   for name in (METHODS[kind] .. (extra or "")):gmatch("%S+") do allowed[name] = true end
   -- raised and width start with a value: a missing field would hit the strict check below
-  local w = { kind = kind, scripts = {}, events = {}, fontStrings = {}, shown = true, raised = 0, width = 140 }
+  local w = { kind = kind, scripts = {}, events = {}, fontStrings = {}, shown = true, raised = 0, width = 140,
+              lines = {}, isPlan = false }
   widgets[#widgets + 1] = w
-  return setmetatable(w, { __index = function(_, name)
+  return setmetatable(w, { __newindex = function(t, key, value)
+    if key == "planLines" then value.isPlan = true end   -- the window names its plan view
+    rawset(t, key, value)
+  end, __index = function(_, name)
     if not allowed[name] then error(kind .. " has no method " .. tostring(name), 2) end
     return impl[name] or function() end
   end })
@@ -182,6 +199,21 @@ function BreakUpLargeNumbers(n)
     if changed == 0 then return s end
   end
 end
+-- Added 2026-10-11 (v0.8): item tooltips. ShowItemTooltip(id) returns the lines the addon added.
+local tooltipCalls = {}
+Enum = Enum or {}
+Enum.TooltipDataType = { Item = 0 }
+TooltipDataProcessor = { AddTooltipPostCall = function(kind, fn)
+  if kind ~= Enum.TooltipDataType.Item then error("unexpected tooltip data type") end
+  tooltipCalls[#tooltipCalls + 1] = fn
+end }
+function ShowItemTooltip(itemID)
+  local tip = Widget("GameTooltip")
+  for _, fn in ipairs(tooltipCalls) do fn(tip, { id = itemID }) end
+  return tip.lines
+end
+function PlanLines() return ForeverAHWindow.planLines.lines end
+
 C_CurrencyInfo = { GetCoinTextureString = function(copper)
   if type(copper) ~= "number" then error("bad argument #1 to 'GetCoinTextureString'") end
   local g, s, c = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
@@ -294,11 +326,18 @@ end
 
 -- Added 2026-10-11 for Inventory.lua. Mainline bag layout; bank bags read as 0 slots while the
 -- bank is closed, like the real client.
-Enum = { BagIndex = {
+-- Changed 2026-10-11 (v0.8): Enum is shared with the tooltip stub above, so add to it.
+-- Enum = { BagIndex = {
+--   Backpack = 0, Bag_1 = 1, Bag_2 = 2, Bag_3 = 3, Bag_4 = 4, ReagentBag = 5,
+--   CharacterBankTab_1 = 6, CharacterBankTab_2 = 7, AccountBankTab_1 = 12,
+--   Characterbanktab = -2, Accountbanktab = -3, Keyring = -1,
+-- } }
+Enum = Enum or {}
+Enum.BagIndex = {
   Backpack = 0, Bag_1 = 1, Bag_2 = 2, Bag_3 = 3, Bag_4 = 4, ReagentBag = 5,
   CharacterBankTab_1 = 6, CharacterBankTab_2 = 7, AccountBankTab_1 = 12,
   Characterbanktab = -2, Accountbanktab = -3, Keyring = -1,
-} }
+}
 BANK_OPEN = false
 BAGS_READABLE = true
 local containers = {}   -- bag -> { slots = n, [slot] = info }

@@ -25,7 +25,7 @@ import yaml
 
 # Changed 2026-10-11: planner added for the Today page; money() moved to pipeline/analytics.py.
 # from pipeline import ahledger, analytics, savedvars
-from pipeline import ahledger, analytics, houses, news, planner, savedvars   # news, houses added 2026-10-11
+from pipeline import ahledger, analytics, houses, news, planfile, planner, savedvars   # news, houses, planfile added 2026-10-11
 from pipeline.analytics import money
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -85,7 +85,10 @@ def sv_path(arg: str | None) -> list[Path]:
 
 # Changed 2026-10-11: `today` added so a date can be previewed (launch week before launch).
 # def build(sv, market: str | None, pull: bool, out: Path) -> Path:   # sv: a path, or one per account
-def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None = None) -> Path:
+# def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None = None) -> Path:
+# (2026-10-11: plan_to added - where to write the in-game plan file, None = don't)
+def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None = None,
+          plan_to: Path | None = None) -> Path:
     today = today or dt.date.today()
     db = savedvars.load(sv)
     scans = [s for s in db.get("scans") or [] if s.get("raw")]
@@ -384,6 +387,15 @@ def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None =
                      for e in cal["upcoming"]],
     }
 
+    # ---- the same suggestions for the game (added 2026-10-11): pipeline/planfile.py
+    if plan_to:
+        headline = ""
+        if launch:
+            headline = (f"Launch week, day {cal['phase_day']} of 7" if phase_id in planner.NO_HOLD_PHASES
+                        else "New market: launch-week rules")
+        planfile.write(planfile.make(cur["ts"], labels, name, sells, reposts, vendor_buys if launch else buys, book,
+                                     headline, "launch" if launch else "normal"), plan_to)
+
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(ROOT / "dashboard" / "templates"), autoescape=True)
     # Changed 2026-10-11: two pages instead of one; `out` is now the site directory.
     # out.parent.mkdir(parents=True, exist_ok=True)
@@ -411,4 +423,8 @@ if __name__ == "__main__":
     #     parser.error("--sv or FOREVERAH_SV is required")
     # print(build(Path(args.sv), args.market, args.pull, Path(args.out)))
     # print(build(sv_path(args.sv), args.market, args.pull, Path(args.out)))
-    print(build(sv_path(args.sv), args.market, args.pull, Path(args.out), args.date))
+    # print(build(sv_path(args.sv), args.market, args.pull, Path(args.out), args.date))
+    # (2026-10-11: also write the in-game plan, except for a --date preview)
+    plan_to = None if args.date else planfile.target()
+    print(build(sv_path(args.sv), args.market, args.pull, Path(args.out), args.date, plan_to))
+    print(f"in-game plan: {plan_to}" if plan_to else "in-game plan: not written (preview, or the addon is not installed)")

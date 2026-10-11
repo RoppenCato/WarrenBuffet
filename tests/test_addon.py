@@ -28,8 +28,9 @@ class Game:
     # def __init__(self, unknown_events=(), broken_widget=None):   (2026-10-11: player_name added)
     # def __init__(self, unknown_events=(), broken_widget=None, player_name="Tester"):
     # (2026-10-11: no_templates and no_minimap added, for the UI's fallback looks)
+    # (2026-10-11, v0.8: plan = the text of a generated ForeverAH_Plan.lua, loaded instead of the placeholder)
     def __init__(self, unknown_events=(), broken_widget=None, player_name="Tester", no_templates=False,
-                 no_minimap=False):
+                 no_minimap=False, plan=None):
         self.lua = LuaRuntime(register_eval=False, register_builtins=False)
         self.lua.execute((ROOT / "tests" / "wow_stub.lua").read_text(encoding="utf-8"))
         self.g = self.lua.globals()
@@ -43,7 +44,9 @@ class Game:
         toc = (ADDON / "ForeverAH.toc").read_text(encoding="utf-8").splitlines()
         for name in (line.strip() for line in toc):
             if name and not name.startswith("#"):
-                self.g.LoadAddonFile(name, (ADDON / name).read_text(encoding="utf-8"))
+                # self.g.LoadAddonFile(name, (ADDON / name).read_text(encoding="utf-8"))
+                source = plan if plan and name == "ForeverAH_Plan.lua" else (ADDON / name).read_text(encoding="utf-8")
+                self.g.LoadAddonFile(name, source)
         self.fire("ADDON_LOADED", "ForeverAH")
         self.fire("PLAYER_LOGIN")
 

@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from pipeline import ahledger, analytics, houses, news, planner, savedvars  # noqa: E402
+from pipeline import ahledger, analytics, houses, news, planfile, planner, savedvars  # noqa: E402
 
 # (item, count, buyout total, minBid, bid, timeLeft): 10 @ 100, 10 @ 200, 20 @ 300, one bid-only row
 ROWS = [(1, 10, 1000, 0, 0, 3), (1, 10, 2000, 0, 0, 3), (1, 20, 6000, 0, 0, 4), (1, 5, 0, 50, 0, 1)]
@@ -82,6 +82,32 @@ def test_two_accounts_merge_into_one_table():
     assert sorted(db["inv"]) == ["Bank-R", "Mage-R"] and db["trader"] == "Bank-R"
     assert sorted(savedvars.items(db)) == [1, 2] and db["errors"] == ["x"] and db["throttled"] == 2
     assert savedvars.merge([main]) is main
+
+
+def test_plan_file_is_valid_lua():
+    import tempfile
+    from lupa.lua51 import LuaRuntime
+    labels = {"sell": "Sell", "keep": "Keep collecting", "repost": "Repost", "buy": "Buy", "short": "Over budget"}
+    names = {2770: "Copper Ore", 9: 'Odd "name" with \\ and\nnewline'}
+    plan = planfile.make(
+        scan_ts=1791750584, labels=labels, name=names.get,
+        sells=[{"action": "sell", "item_id": 2770, "units": 120, "price": 141, "net": 15974.0, "why": "Supply is tight."},
+               {"action": "keep", "item_id": 9, "units": 3, "price": 8, "net": -77.2, "why": "Too small."}],
+        reposts=[{"action": "repost", "item_id": 2770, "units": 40, "price": 190, "cheapest": None, "why": "Undercut."}],
+        buys=[{"item_id": 2770, "units": 30, "max_price": 98, "cost": 2400.0, "profit": 600.5, "affordable": False, "why": "Cheap."}],
+        books={2770: [(141, 10), (150, 5)], 9: [(8, 1)]}, headline="Launch week, day 2 of 7", mode="launch")
+    with tempfile.TemporaryDirectory() as tmp:
+        text = planfile.write(plan, Path(tmp) / planfile.NAME).read_text(encoding="utf-8")
+    lua = LuaRuntime(register_eval=False, register_builtins=False)
+    lua.execute(text)
+    got = lua.globals().ForeverAH_Plan
+    assert (got.mode, got.headline, got.scan) == ("launch", "Launch week, day 2 of 7", 1791750584)
+    assert (got.sell[1].act, got.sell[1].item, got.sell[1].units, got.sell[1].price, got.sell[1].get) == ("Sell", "Copper Ore", 120, 141, 15974)
+    assert got.sell[2].item == names[9] and got.sell[2].get == 0          # quotes, backslash and newline survive
+    assert (got.auctions[1].act, got.auctions[1].cheapest) == ("Repost", 0)
+    assert (got.buy[1].act, got.buy[1].max, got.buy[1].profit) == ("Over budget", 98, 600)
+    assert got.min[2770] == 141 and got.min[9] == 8 and got.act[2770] == "Sell" and got.act[9] == "Keep collecting"
+    assert planfile.lua({"a b": [1, 2.5, True, None], 3: {}}) == '{\n  ["a b"] = {\n    1,\n    2.5,\n    true,\n    nil,\n  },\n  [3] = {},\n}'
 
 
 def test_houses():

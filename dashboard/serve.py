@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 
 from dashboard.build import ROOT, build, sv_path
-from pipeline import news, savedvars, storage
+from pipeline import news, planfile, savedvars, storage
 
 SITE = ROOT / "dashboard" / "site"
 
@@ -30,10 +30,12 @@ def refresh(sv: Path, out: Path = SITE) -> list[str]:
     except Exception as err:   # offline or feed down: keep what we have
         steps.append(f"news pull failed ({err})")
     try:
-        build(sv, None, True, out)
-        steps.append("prices pulled, pages rebuilt")
+        # build(sv, None, True, out)   (2026-10-11: the in-game plan is written too)
+        build(sv, None, True, out, plan_to=planfile.target())
+        steps.append("prices pulled, pages and in-game plan rebuilt")
     except (Exception, SystemExit) as err:
-        build(sv, None, False, out)
+        # build(sv, None, False, out)
+        build(sv, None, False, out, plan_to=planfile.target())
         steps.append(f"price pull failed ({err}); rebuilt from stored data")
     try:   # added 2026-10-11: keep the Parquet store current as well
         table = savedvars.load(sv)
@@ -73,7 +75,8 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     Handler.sv = sv_path(args.sv)
-    build(Handler.sv, None, False, SITE)   # make sure the pages exist and match the current code
+    # build(Handler.sv, None, False, SITE)   # make sure the pages exist and match the current code
+    build(Handler.sv, None, False, SITE, plan_to=planfile.target())   # pages and plan match the current code
     server = http.server.ThreadingHTTPServer(("127.0.0.1", args.port), functools.partial(Handler, directory=str(SITE)))
     print(f"ForeverAH dashboard on http://localhost:{args.port} - Ctrl+C to stop")
     server.serve_forever()
