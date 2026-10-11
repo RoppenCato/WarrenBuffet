@@ -107,6 +107,25 @@ def ledger_rows(db: dict) -> list[dict]:
     return out
 
 
+def _counts(text) -> dict[int, int]:
+    return {int(i): int(n) for i, n in (pair.split(":") for pair in (text or "").split(",") if pair)}
+
+
+def inventory(db: dict) -> dict[str, dict]:
+    """Holdings per character (Inventory.lua): bags, bank, abank as {item_id: count}, auctions as
+    a list of dicts, plus the <key>Ts timestamps and err if a snapshot failed."""
+    fields = ("auction", "item", "qty", "buyout", "bid", "status", "seconds")
+    out = {}
+    for char, inv in (db.get("inv") or {}).items():
+        rec = {k: v for k, v in inv.items() if k.endswith("Ts") or k == "err"}
+        for key in ("bags", "bank", "abank"):
+            rec[key] = _counts(inv.get(key))
+        rec["auctions"] = [dict(zip(fields, map(int, row.split(":"))))
+                           for row in (inv.get("auctions") or "").split(";") if row]
+        out[char] = rec
+    return out
+
+
 def report(path) -> None:
     size_mb = Path(path).stat().st_size / 1e6
     t = time.perf_counter()
@@ -142,6 +161,11 @@ def report(path) -> None:
                 print(f"  T5 {name} {item_id}: NOT in scan")
     events = Counter(row["event"] for row in ledger_rows(db))
     print(f"\nledger: {dict(events) or 'empty'}")
+    # Added 2026-10-11: holdings saved by Inventory.lua.
+    for char, inv in inventory(db).items():
+        print(f"inventory {char}: {len(inv['bags'])} items in bags, {len(inv['bank'])} in bank, "
+              f"{len(inv['abank'])} in account bank, {len(inv['auctions'])} own auctions"
+              + (f", ERROR {inv['err']}" if inv.get("err") else ""))
 
 
 if __name__ == "__main__":

@@ -135,6 +135,44 @@ function GetInboxItem(i)
   if m.item then return m.name, m.item, 0, m.itemCount or 1, 1, true end
 end
 
+-- Added 2026-10-11 for Inventory.lua. Mainline bag layout; bank bags read as 0 slots while the
+-- bank is closed, like the real client.
+Enum = { BagIndex = {
+  Backpack = 0, Bag_1 = 1, Bag_2 = 2, Bag_3 = 3, Bag_4 = 4, ReagentBag = 5,
+  CharacterBankTab_1 = 6, CharacterBankTab_2 = 7, AccountBankTab_1 = 12,
+  Characterbanktab = -2, Accountbanktab = -3, Keyring = -1,
+} }
+BANK_OPEN = false
+BAGS_READABLE = true
+local containers = {}   -- bag -> { slots = n, [slot] = info }
+
+function SetBag(bag, slots, items)   -- items: { {slot, itemID, count, isBound}, ... }
+  local c = { slots = slots }
+  for _, it in ipairs(items) do
+    c[it[1]] = { itemID = it[2], stackCount = it[3], isBound = it[4] or false }
+  end
+  containers[bag] = c
+end
+
+C_Container = {}
+function C_Container.GetContainerNumSlots(bag)
+  if type(bag) ~= "number" then error("bad argument #1 to 'GetContainerNumSlots'") end
+  local c = containers[bag]
+  if not c or not BAGS_READABLE or (bag > 5 and not BANK_OPEN) then return 0 end
+  return c.slots
+end
+function C_Container.GetContainerItemInfo(bag, slot) return containers[bag][slot] end
+
+OWNED = {}
+QUERY_OWNED = 0
+function C_AuctionHouse.QueryOwnedAuctions(sorts)
+  if type(sorts) ~= "table" then error("bad argument #1 to 'QueryOwnedAuctions'") end
+  QUERY_OWNED = QUERY_OWNED + 1
+end
+function C_AuctionHouse.GetNumOwnedAuctions() return #OWNED end
+function C_AuctionHouse.GetOwnedAuctionInfo(i) return OWNED[i] end
+date = os.date
+
 function UnitName() return "Tester" end
 function GetRealmName() return "Beta Realm" end
 function GetNormalizedRealmName() return "BetaRealm" end

@@ -40,6 +40,7 @@ ns.On("ADDON_LOADED", function(name)
   db.scans = db.scans or {}        -- oldest first, see Scanner.lua
   db.ledger = db.ledger or {}      -- see Ledger.lua
   db.mailSeen = db.mailSeen or {}  -- mail dedup, see Ledger.lua
+  db.inv = db.inv or {}            -- added 2026-10-11: holdings per character, see Inventory.lua
   ns.db = db
 end)
 
@@ -67,6 +68,7 @@ local function Status()
   if #ns.missingEvents > 0 then
     ns.Print("events missing in this client: %s", table.concat(ns.missingEvents, ", "))
   end
+  ns.InventoryStatus()   -- added 2026-10-11 with Inventory.lua
   ns.Print("/fah scan = scan now (AH open), /fah item <id> = item in latest scan")
 end
 
