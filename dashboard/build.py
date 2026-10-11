@@ -25,7 +25,7 @@ import yaml
 
 # Changed 2026-10-11: planner added for the Today page; money() moved to pipeline/analytics.py.
 # from pipeline import ahledger, analytics, savedvars
-from pipeline import ahledger, analytics, planner, savedvars
+from pipeline import ahledger, analytics, news, planner, savedvars   # news added 2026-10-11
 from pipeline.analytics import money
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -52,6 +52,16 @@ def pct(new: float, old: float) -> str:
 
 def when(ts: int) -> str:
     return dt.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
+
+
+def sv_path(arg: str | None) -> Path:
+    """SavedVariables file: --sv, else FOREVERAH_SV, else "sv" in data/local.json (not committed)."""
+    local = ROOT / "data" / "local.json"
+    path = arg or os.environ.get("FOREVERAH_SV") or (
+        json.loads(local.read_text(encoding="utf-8")).get("sv") if local.exists() else None)
+    if not path:
+        raise SystemExit('no SavedVariables path: pass --sv, set FOREVERAH_SV, or put {"sv": "..."} in data/local.json')
+    return Path(path)
 
 
 def build(sv: Path, market: str | None, pull: bool, out: Path) -> Path:
@@ -235,7 +245,26 @@ def build(sv: Path, market: str | None, pull: bool, out: Path) -> Path:
     def event_label(event_id):
         return event_id.replace("_", " ").capitalize()
 
+    # -- news (added 2026-10-11): flagged headlines waiting for a review, and what past reviews found
+    stories, watch_names = news.load(), news.watch_names()
+    flagged = news.flagged(stories, watch_names)
+    recent = (dt.date.today() - dt.timedelta(days=14)).isoformat()
+
+    def story(s):
+        return {"title": s["title"], "link": s["link"], "date": (s.get("published") or "")[:10],
+                "why": "; ".join(s["reasons"])}
+
+    news_ctx = {
+        "waiting": [story(s) for s in flagged if s["score"] >= news.REVIEW_SCORE],
+        "weak": [story(s) for s in flagged if s["score"] < news.REVIEW_SCORE],
+        "reviewed": [r for r in sorted(news.reviewed(), key=lambda r: str(r.get("date")), reverse=True)
+                     if r.get("verdict") in ("relevant", "minor") and str(r.get("date")) >= recent],
+        "stored": len(stories), "attribution": news.ATTRIBUTION,
+        "prompt": "Review the flagged news",
+    }
+
     today = {
+        "news": news_ctx,
         "page": "today", "title": context["title"], "market": market, "attribution": ahledger.ATTRIBUTION,
         "generated": context["generated"], "scan_time": when(cur["ts"])[11:],
         "age": f"{age_min / 60:.0f} h {age_min % 60:.0f} min" if age_min >= 60 else f"{age_min:.0f} min",
@@ -273,12 +302,15 @@ def build(sv: Path, market: str | None, pull: bool, out: Path) -> Path:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--sv", default=os.environ.get("FOREVERAH_SV"), help="path to SavedVariables/ForeverAH.lua")
+    # Changed 2026-10-11: the path can also come from data/local.json, see sv_path().
+    # parser.add_argument("--sv", default=os.environ.get("FOREVERAH_SV"), help="path to SavedVariables/ForeverAH.lua")
+    parser.add_argument("--sv", help="path to SavedVariables/ForeverAH.lua (else FOREVERAH_SV or data/local.json)")
     parser.add_argument("--market", help="AHledger market id; default from realm and faction")
     parser.add_argument("--pull", action="store_true", help="fetch a fresh AHledger pricetable first")
     # parser.add_argument("--out", default=str(ROOT / "dashboard" / "site" / "index.html"))   (2026-10-11: a directory now)
     parser.add_argument("--out", default=str(ROOT / "dashboard" / "site"), help="output directory")
     args = parser.parse_args()
-    if not args.sv:
-        parser.error("--sv or FOREVERAH_SV is required")
-    print(build(Path(args.sv), args.market, args.pull, Path(args.out)))
+    # if not args.sv:
+    #     parser.error("--sv or FOREVERAH_SV is required")
+    # print(build(Path(args.sv), args.market, args.pull, Path(args.out)))
+    print(build(sv_path(args.sv), args.market, args.pull, Path(args.out)))

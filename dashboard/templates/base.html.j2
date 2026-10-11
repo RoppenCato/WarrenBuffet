@@ -35,6 +35,16 @@
   nav { display: flex; gap: 4px; margin-left: auto; }
   nav a { padding: 5px 12px; border-radius: 8px; text-decoration: none; color: var(--text-secondary); }
   nav a[aria-current] { background: var(--surface-1); border: 1px solid var(--border); color: var(--text-primary); font-weight: 600; }
+  button { font: inherit; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--axis); background: var(--surface-1);
+           color: var(--text-primary); cursor: pointer; }
+  button:disabled { opacity: 0.6; cursor: progress; }
+  #refresh-status { flex-basis: 100%; text-align: right; font-size: 13px; color: var(--text-secondary); min-height: 1em; }
+  .prompt { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 14px; }
+  .prompt code { padding: 5px 10px; border: 1px solid var(--axis); border-radius: 8px; font-size: 14px; }
+  ul.news { list-style: none; margin: 0 0 6px; padding: 0; }
+  ul.news li { padding: 8px 0; border-bottom: 1px solid var(--grid); }
+  ul.news li:last-child { border-bottom: 0; }
+  ul.news .meta { color: var(--text-secondary); font-size: 13px; }
   .sub, .why, .note, footer { color: var(--text-secondary); }
   .sub { margin: 4px 0 20px; }
   .why { margin: 0 0 14px; max-width: 72ch; }
@@ -74,7 +84,9 @@
     <nav>
       <a href="index.html"{% if page == "today" %} aria-current="page"{% endif %}>Today</a>
       <a href="market.html"{% if page == "market" %} aria-current="page"{% endif %}>Market</a>
+      <button id="refresh" type="button" title="Pull news and prices, re-read the last scan, rebuild">Refresh</button>
     </nav>
+    <span id="refresh-status" role="status"></span>
   </header>
   {% block content %}{% endblock %}
   <footer>
@@ -82,6 +94,28 @@
     come from the AHledger API ({{ market }}). Everything else is from own in-game scans. Generated {{ generated }}.
   </footer>
 </main>
+<script>
+  // Refresh asks the local server (python -m dashboard.serve) to pull news and prices and rebuild.
+  document.getElementById('refresh').addEventListener('click', async event => {
+    const button = event.currentTarget, status = document.getElementById('refresh-status');
+    button.disabled = true;
+    status.textContent = 'Refreshing…';
+    try {
+      const reply = await fetch('/refresh', { method: 'POST', headers: { 'X-ForeverAH': 'refresh' } });
+      if (!reply.ok) throw new Error(reply.status);
+      const body = await reply.json();
+      if (body.ok) { location.reload(); return; }
+      status.textContent = body.steps.join(' · ');
+    } catch (err) {
+      status.textContent = 'Refresh needs the local server: python -m dashboard.serve';
+    }
+    button.disabled = false;
+  });
+  document.querySelectorAll('[data-copy]').forEach(button => button.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(button.dataset.copy); button.textContent = 'Copied'; }
+    catch (err) { button.textContent = 'Select and copy the text'; }
+  }));
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

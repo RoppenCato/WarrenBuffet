@@ -11,6 +11,37 @@
   </section>
 
   <section class="card">
+    <h2>News</h2>
+    {% if news.waiting %}
+    <p class="why">{{ news.waiting | length }} flagged {{ "story is" if news.waiting | length == 1 else "stories are" }} waiting for a review.
+      Paste this into Claude Code and it reads them, records what matters and updates the calendar:</p>
+    <p class="prompt"><code>{{ news.prompt }}</code><button type="button" data-copy="{{ news.prompt }}">Copy</button></p>
+    <ul class="news">
+      {% for s in news.waiting %}<li><a href="{{ s.link }}">{{ s.title }}</a><div class="meta">{{ s.date }} · flagged for {{ s.why }}</div></li>{% endfor %}
+    </ul>
+    {% elif news.stored %}
+    <p class="why">No flagged stories are waiting for a review.</p>
+    {% else %}
+    <p class="why">No news pulled yet. Use Refresh, or run <code>python -m pipeline.news pull</code>.</p>
+    {% endif %}
+    {% if news.reviewed %}
+    <h3 style="font-size:15px;margin:14px 0 0">Reviewed, last 14 days</h3>
+    <ul class="news">
+      {% for r in news.reviewed %}<li><span class="act{% if r.verdict != "relevant" %} quiet{% endif %}">{{ r.verdict | capitalize }}</span>
+        <a href="{{ r.link }}">{{ r.title }}</a>
+        <div class="meta">{{ r.date }}{% if r.action %} · {{ r.action }}{% endif %}</div>
+        <div>{{ r.effect }}</div></li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if news.weak %}
+    <details><summary>{{ news.weak | length }} weaker matches, not queued for review</summary><ul class="news">
+      {% for s in news.weak %}<li><a href="{{ s.link }}">{{ s.title }}</a><div class="meta">{{ s.date }} · {{ s.why }}</div></li>{% endfor %}
+    </ul></details>
+    {% endif %}
+    <p class="note">Headlines: <a href="{{ news.attribution.url }}">{{ news.attribution.text }}</a>. The "effect" lines are our own reading, not Wowhead's.</p>
+  </section>
+
+  <section class="card">
     <h2>Sell</h2>
     {% if not has_inventory %}
     <p class="why">No inventory snapshot yet. It needs addon v0.4: log in, open the bank once, then <code>/reload</code>.</p>
