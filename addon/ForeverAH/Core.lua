@@ -47,6 +47,9 @@ ns.On("PLAYER_LOGIN", function()
   local version, build, _, interface = GetBuildInfo()
   ns.db.build = version .. " " .. build .. " " .. interface
   ns.char = UnitName("player") .. "-" .. (GetNormalizedRealmName() or GetRealmName())
+  -- Added 2026-10-11: save the events this client rejected, so the T6 answer is in the
+  -- SavedVariables file and doesn't have to be copied from chat.
+  ns.db.missing = table.concat(ns.missingEvents, ",")
 end)
 
 local function Status()

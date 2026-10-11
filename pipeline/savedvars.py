@@ -106,7 +106,10 @@ def report(path) -> None:
     scans = db.get("scans") or []
     print(f"{path}: {size_mb:.1f} MB, parsed in {parse_s:.2f} s "
           f"[{'ok' if parse_s < MAX_PARSE_S else 'FAIL'} < {MAX_PARSE_S} s]")
-    print(f"client {db.get('build')}, {len(scans)} scans, {db.get('throttled', 0)} throttled replies")
+    # Changed 2026-10-11: also print the events the client rejected (now saved by Core.lua).
+    # print(f"client {db.get('build')}, {len(scans)} scans, {db.get('throttled', 0)} throttled replies")
+    print(f"client {db.get('build')}, {len(scans)} scans, {db.get('throttled', 0)} throttled replies, "
+          f"events missing in client: {db.get('missing') or 'none'}")
     for scan in scans:
         raw = raw_rows(scan)
         raw_mb = sum(len(c) for c in scan.get("raw") or []) / 1e6

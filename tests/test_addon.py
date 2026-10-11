@@ -196,6 +196,7 @@ def test_missing_events_do_not_break_the_addon():
     game = Game(unknown_events=["ITEM_PURCHASED", "COMMODITY_PURCHASED"])
     game.slash("")
     assert any("events missing in this client: " in p and "ITEM_PURCHASED" in p for p in game.printed())
+    assert game.db()["missing"] == "COMMODITY_PURCHASED,ITEM_PURCHASED"
     game.set_auctions(make_auctions(100, 5))
     game.open_ah()
     assert len(game.db()["scans"]) == 1
