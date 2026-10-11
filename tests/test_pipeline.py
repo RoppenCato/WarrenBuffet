@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from pipeline import ahledger, analytics  # noqa: E402
+from pipeline import ahledger, analytics, planner  # noqa: E402
 
 # (item, count, buyout total, minBid, bid, timeLeft): 10 @ 100, 10 @ 200, 20 @ 300, one bid-only row
 ROWS = [(1, 10, 1000, 0, 0, 3), (1, 10, 2000, 0, 0, 3), (1, 20, 6000, 0, 0, 4), (1, 5, 0, 50, 0, 1)]
@@ -54,6 +54,63 @@ def test_parse_pricetable():
     assert (linen.low_30d, linen.high_30d, linen.sold_per_day) == (3, 104, 15079.4)
     assert prices[720].high_30d is None and prices[720].sold_per_day is None   # short line
     assert prices[55].median_7d is None and prices[55].sold_per_day == 0       # empty fields
+
+
+def price(median_7d, sold):
+    return ahledger.Price(median_7d, median_7d, 0, median_7d, None, None, None, sold)
+
+
+def test_planner_sell_rules():
+    books = {
+        1: [(130, 500), (140, 500)],     # 30 % above its 7-day median
+        2: [(100, 40)],                  # 40 listed, 1,000 sold a day: tight
+        3: [(70, 5000)],                 # 30 % under its 7-day median
+        4: [(100, 5000)],                # at its normal price
+        5: [(17, 9000)],                 # held lot too small to post
+    }
+    ahl = {1: price(100, 10), 2: price(100, 1000), 3: price(100, 10), 4: price(100, 10), 5: price(17, 5000)}
+    held = {1: 100, 2: 100, 3: 100, 4: 100, 5: 13, 6: 50}
+    recs = {r["item_id"]: r for r in planner.sell(held, books, ahl)}
+    assert [recs[i]["action"] for i in (1, 2, 3, 4, 5, 6)] == ["sell", "sell", "hold", "sell", "keep", "price"]
+    assert "30% above" in recs[1]["why"] and "Supply is tight" in recs[2]["why"] and "30% under" in recs[3]["why"]
+    assert "worth 2s 21c" in recs[5]["why"] and "post costs 1s 00c" in recs[5]["why"]
+    assert recs[1]["net"] == 100 * 130 * 0.95 - 100
+    assert [r["action"] for r in planner.sell(held, books, ahl)] == ["sell", "sell", "sell", "hold", "keep", "price"]
+    launch = {r["item_id"]: r for r in planner.sell(held, books, ahl, phase="sell_to_levelers")}
+    assert launch[3]["action"] == "sell" and "launch week" in launch[3]["why"]
+
+
+def test_planner_repost_and_buy():
+    books = {1: [(100, 500)], 2: [(100, 500)], 3: [(10, 50)]}
+    mine = [{"item": 1, "qty": 50, "buyout": 104, "status": 0, "seconds": 3600},    # within 5 %
+            {"item": 2, "qty": 50, "buyout": 150, "status": 0, "seconds": 7200},    # undercut
+            {"item": 3, "qty": 5, "buyout": 30, "status": 0, "seconds": 7200},      # undercut, tiny lot
+            {"item": 2, "qty": 50, "buyout": 150, "status": 1, "seconds": 0}]       # already sold
+    recs = planner.repost(mine, books)
+    assert [(r["item_id"], r["action"]) for r in recs] == [(2, "repost"), (1, "leave"), (3, "leave")]
+    assert "Undercut by 50%" in recs[0]["why"] and recs[0]["hours"] == 2
+
+    books = {1: [(100, 10), (200, 10), (300, 20)], 2: [(10, 40), (200, 100), (210, 100)]}
+    ahl = {1: price(200, 100), 2: price(200, 1000)}
+    deals = planner.buy(books, ahl, balance=500)
+    assert [(d["item_id"], d["affordable"]) for d in deals] == [(2, True), (1, False)]   # affordable first
+    assert deals[0]["max_price"] == 140 and "40 units" in deals[0]["why"]
+
+
+def test_planner_calendar():
+    import datetime as dt
+    plan = {"events": [{"id": "beta_end", "start": dt.datetime(2026, 10, 22, 6), "note": "Beta ends."},
+                       {"id": "launch", "start": dt.datetime(2026, 11, 5)},
+                       {"id": "name_reservation", "start": dt.date(2026, 10, 27)},
+                       {"id": "hardcore", "start": None}],
+            "phases": [{"id": "sell_to_levelers", "from": "launch", "days": 7, "focus": "Sell raw mats."},
+                       {"id": "levelers_to_60", "from_date": dt.date(2026, 11, 12), "to_date": dt.date(2026, 12, 1)}]}
+    before = planner.calendar(plan, dt.date(2026, 10, 11))
+    assert before["phase"] is None
+    assert [(e["id"], e["days"]) for e in before["upcoming"]] == [("beta_end", 11), ("name_reservation", 16), ("launch", 25)]
+    assert planner.calendar(plan, dt.date(2026, 11, 6))["phase"]["id"] == "sell_to_levelers"
+    assert planner.calendar(plan, dt.date(2026, 11, 20))["phase"]["id"] == "levelers_to_60"
+    assert planner.calendar(plan, dt.date(2026, 12, 5))["phase"] is None
 
 
 if __name__ == "__main__":

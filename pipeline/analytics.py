@@ -12,6 +12,15 @@ AH_CUT = 0.05        # faction AH cut on a sale (playbook; not verified in Forev
 MIN_DEPOSIT = 100    # copper per post - beta 2026-10-11 (docs/07-test-plan.md, T5)
 
 
+def money(copper: float) -> str:
+    """Copper as text: 12g 34s, 5s 06c, 17c. (Moved here from dashboard/build.py 2026-10-11 so the
+    planner's reasons use the same format.)"""
+    copper = round(copper)
+    sign, copper = ("-" if copper < 0 else ""), abs(copper)
+    g, s, c = copper // 10000, copper // 100 % 100, copper % 100
+    return sign + (f"{g:,}g {s:02}s" if g else f"{s}s {c:02}c" if s else f"{c}c")
+
+
 def unit_price(count: int, buyout: int) -> int:
     """Same rounding as Scanner.lua."""
     return max(1, math.floor(buyout / count + 0.5))
