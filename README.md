@@ -32,6 +32,9 @@ data/                   Local data — gitignored, never committed
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 .venv\Scripts\python tests\test_addon.py
+.venv\Scripts\python tests\test_pipeline.py
+.venv\Scripts\python -m pipeline.ahledger pull forever.normal.horde.us
+.venv\Scripts\python -m dashboard.build --sv "<...>\SavedVariables\ForeverAH.lua" --pull
 .venv\Scripts\python -m pipeline.savedvars "<...>\SavedVariables\ForeverAH.lua"
 ```
 

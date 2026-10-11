@@ -32,6 +32,8 @@ tests/             Offline tests (addon runs under a stubbed WoW API)
 
 - Tests: `.venv\Scripts\python tests\test_addon.py` (venv: `python -m venv .venv`, then `pip install -r requirements.txt`)
 - T4/T5 report on a real file: `.venv\Scripts\python -m pipeline.savedvars "<...>\SavedVariables\ForeverAH.lua"`
+- Pipeline tests: `.venv\Scripts\python tests\test_pipeline.py`
+- Dashboard: `.venv\Scripts\python -m dashboard.build --sv "<...>\ForeverAH.lua" --pull` → `dashboard/site/index.html` (ignored). Preview server: the `dashboard` entry in `.claude/launch.json`.
 
 ## Addon notes
 

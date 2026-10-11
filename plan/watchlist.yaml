@@ -49,8 +49,12 @@ categories:
     - {id: 13510, name: Flask of the Titans,    seen_beta: false}
 
   scarce_mats:                   # Forever-only; IDs unknown - fill from beta/launch data
-    - {id: null, name: Pyrite}
-    - {id: null, name: Frilled Lichen}
-    - {id: null, name: Pristine Leather}
+    # 2026-10-11: ids found in the beta scan, names from the AHledger API (ahledger.com).
+    # - {id: null, name: Pyrite}
+    # - {id: null, name: Frilled Lichen}
+    # - {id: null, name: Pristine Leather}
+    - {id: 249391, name: Pyrite,           seen_beta: true}
+    - {id: 249399, name: Frilled Lichen,   seen_beta: true}
+    - {id: 249427, name: Pristine Leather, seen_beta: true}
     - {id: null, name: Fel Crystal}
     - {id: null, name: Stranglevine}

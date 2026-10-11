@@ -5,7 +5,7 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | # | Test | Where | Status |
 |---|---|---|---|
 | T1 | AHledger API reachable, schema as documented | Web | ✅ 2026-10-11 |
-| T1b | Pricetable fields match docs | Python | ⏳ |
+| T1b | Pricetable fields match docs | Python | ✅ 2026-10-11 |
 | T2 | Blizzard Game Data API has Forever auctions | Web | ⏳ (at launch) |
 | T3 | `ReplicateItems` full scan works in Forever client | Beta | ✅ 2026-10-11 |
 | T4 | SavedVariables size, write on logout, Python parse | Beta | ✅ 2026-10-11 |
@@ -25,6 +25,16 @@ Run 2026-10-11 (beta data).
 - From the cloud workspace, `curl` to the API was blocked by the sandbox proxy — irrelevant for the home PC, but re-test there (T8).
 
 **Finding:** coverage is irregular — 37 covered hours of 168 in the 7-day window, gaps up to ~9h. Confirms: AHledger fills gaps, can't be the only source.
+
+## T1b — Pricetable fields ✅
+
+Run 2026-10-11 on `forever.normal.horde.us`, Linen Cloth 2589 and Copper Ore 2770, pricetable against `/v1/prices/…?range=30d` fetched in the same minute. Source: [AHledger](https://ahledger.com).
+
+- `median`, `minBuyout`, `quantity`, `median7d`, `median30d` equal `latest` in the price endpoint.
+- `soldPerDay×10` equals `sales.estimatedPerDay` × 10 (150794 ↔ 15,079.4; 88349 ↔ 8,834.9).
+- `low30d` is the lowest daily `min` in the 30-day series, `high30d` the highest daily `median`.
+- Lines can be short (trailing fields missing) or have empty fields; the parser returns `None` for those.
+- `Cache-Control: max-age=60`; rate limit header says 300 per minute.
 
 ## T2 — Blizzard API (at launch)
 
@@ -142,6 +152,8 @@ Result 2026-10-11, run 2 — **pass** (own scan 14:41 UTC, AHledger 14:35 UTC). 
 | Linen Cloth units / auctions | 15,138 / 587 | 12,812 / 489 |
 | Copper Ore min / median | 141 / 148 | 141 / 145 |
 | Copper Ore units / auctions | 2,202 / 119 | 2,035 / 116 |
+
+Across the whole house: 2,983 items appear in both scans, and 98 % of them have medians within 10 % of each other (97 % among the 473 items selling 50+ a day).
 
 Medians are within 2 %. Linen's min differs by 1 copper, which is 5.6 % at this price — the 5 % rule needs an absolute floor for cheap items. Linen quantity differs by 18 %; AHledger's hourly point an hour earlier (15,140 units) matches ours, so this looks like timing or their filtering, not a scan gap.
 
