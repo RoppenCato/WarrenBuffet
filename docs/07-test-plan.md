@@ -12,7 +12,7 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T5 | Commodities included in replicate? AH type? | Beta | ✅ 2026-10-11 — included; deposit is at least 1s per post; neutral cut still open |
 | T6 | Ledger captures post/sold/bought/expired | Beta | ⚠️ 2026-10-11 — post, cancel, bought, cancelled correct in run 2; sold/expired not seen yet; money rows (v0.3) untested in game |
 | T7 | Own scan vs AHledger agree on same hour | Beta/launch | ✅ 2026-10-11 — medians within 2 %, mins within 1 copper, 6 min apart |
-| T8 | Scheduled hourly pull runs unattended for 48h | PC | ⏳ |
+| T8 | Scheduled hourly pull runs unattended for 48h | PC | ⏳ — `tools\pull.cmd` ready and run once by hand 2026-10-11; not scheduled yet |
 | T9 | Inventory and own-auctions snapshot | Beta | ⏳ before Oct 22 — addon v0.4 ready 2026-10-11 |
 | T10 | Log window, button, several characters | Beta | ⏳ before Oct 22 — addon v0.5 ready 2026-10-11 |
 
@@ -192,3 +192,7 @@ Found before the run, 2026-10-11: a new character's first session (16:57) wrote 
 ## T8 — Unattended pull
 
 Task Scheduler hourly → `pipeline pull ahledger`; 48h; check no gaps in our L1, respect for rate limits and cache headers.
+
+As built 2026-10-11: `tools\pull.cmd` runs `python -m pipeline.pull` — the pricetable of every house in `plan/houses.yaml` plus the news, stored in L1, one line per run in `data/pull.log`, exit code 1 if a source failed. Register with `schtasks /Create /SC HOURLY /TN "ForeverAH pull" /TR "C:\dev\WarrenBuffet\tools\pull.cmd" /F`.
+First manual run: both EU houses answer with an empty table (nobody can scan them before launch) and are skipped; the beta house was unchanged.
+After 48 h check: `data/pull.log` has a line per hour, none with FAILED, and `python -m pipeline.storage status` shows the snapshots.

@@ -58,3 +58,20 @@ Steady state < 2 GB on disk. Nothing under `data/` goes into git.
 Ledger table: `ts, character, event (post|sold|bought|expired|cancelled|deposit|craft), item_id, qty, unit_price, total, fee, house`.
 
 Engine: Parquet files + DuckDB for queries/views. SQLite only for the ledger if convenient.
+
+## As built (2026-10-11, `pipeline/storage.py`)
+
+```
+data/l0/date=YYYY-MM-DD/<house>-<ts>.parquet            raw own scans, one row per auction, pruned after 14 days
+data/l1/date=YYYY-MM-DD/<source>-<house>-<ts>.parquet   one row per item per snapshot, kept forever
+data/ledger.parquet                                     own transactions, kept forever
+data/ahledger/<house>/<ts>.txt                          landing zone for pulled pricetables; only the newest is kept
+```
+
+- One file per snapshot. A snapshot whose file exists is skipped, which is the dedup on `(source, house, snapshot_ts)`.
+- L1 columns are the schema above. Own scans fill everything except `sold_est_per_day`; `p75` and `depth_5pct` need the raw rows, so they are empty for a scan ingested after the addon dropped its raw. AHledger rows have `median`, `min_buyout`, `quantity` and `sold_est_per_day` only. `variant` is always empty until gear variants are handled.
+- L0 columns: `house, snapshot_ts, item_id, count, buyout, min_bid, bid, time_left`.
+- Ledger columns: `ts, character, event, item_id, qty, unit_price, total, fee, deposit, copper, delta, auction, name, row` — `row` is the addon's original line and the dedup key.
+- DuckDB views from `storage.connect()`: `l0`, `l1`, `ledger`, `latest` (newest snapshot per source and house), `hourly` (L2: one row per house, item and hour; Blizzard beats own beats AHledger), `daily` (L3). L2 and L3 are views over L1 until L1 is too big to scan each time; the 180-day L2 retention starts mattering only then.
+- Measured on beta data: two scans (163,507 auction rows) are 0.6 MB in L0; three L1 snapshots are 0.14 MB; a full ingest takes under a second. The size table above is generous.
+- `python -m pipeline.storage ingest` reads the SavedVariables file and the landing zone; `python -m pipeline.pull` stores what it pulls; the dashboard's Refresh does both.

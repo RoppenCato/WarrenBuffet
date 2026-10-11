@@ -25,6 +25,7 @@ Times in CET/CEST (Stockholm). Machine-readable version: [`plan/calendar.yaml`](
 ### Pre-launch (Oct 22 – Nov 4)
 - Pipeline: hourly AHledger pull scheduled; dashboard skeleton running on beta data.
 - Choose house (ruleset + faction). Plan professions: one gathering + one crafting early (gathering pays from minute one).
+  - 2026-10-11: ruleset is **Normal** (EU). Faction still open; both houses are tracked until it is decided (D28).
 - Name reservation window: reserve main + bank alt.
 
 ### Launch week (Nov 5–11) — "sell to levelers"

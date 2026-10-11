@@ -36,7 +36,9 @@ python -m venv .venv
 .venv\Scripts\python tests\test_pipeline.py
 .venv\Scripts\python -m pipeline.ahledger pull forever.normal.horde.us
 .venv\Scripts\python -m dashboard.build --sv "<...>\SavedVariables\ForeverAH.lua" --pull
-.venv\Scripts\python -m pipeline.news pull
+.venv\Scripts\python -m pipeline.pull            (prices for every tracked house + news; tools\pull.cmd for Task Scheduler)
+.venv\Scripts\python -m pipeline.storage ingest  (SavedVariables + pulls -> Parquet; `status` shows what is stored)
+.venv\Scripts\python tests\test_storage.py
 .venv\Scripts\python -m dashboard.serve          (http://localhost:8765, with a Refresh button)
 .venv\Scripts\python -m pipeline.savedvars "<...>\SavedVariables\ForeverAH.lua"
 ```

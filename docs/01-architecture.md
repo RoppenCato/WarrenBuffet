@@ -25,7 +25,8 @@
 | `addon/ForeverAH` | Lua (Mainline API) | Full AH scan, own-transaction ledger, inventory and own-auctions snapshot, show today's plan in game |
 | `pipeline/ingest_*` | Python | Parse SavedVariables; pull AHledger hourly; pull Blizzard API if available |
 | `pipeline/news` | Python | Pull Wowhead's Forever news feed, flag headlines that may move prices, list those waiting for a review |
-| `pipeline/storage` | Python + Parquet/DuckDB | Tiered storage, dedup by `(source, house, snapshot_ts, item_id)` |
+| `pipeline/storage` | Python + Parquet/DuckDB | Tiered storage, dedup by `(source, house, snapshot_ts, item_id)`. Built 2026-10-11: L0, L1, ledger as Parquet; L2/L3 as views |
+| `pipeline/pull` | Python | The hourly job: pricetable of every tracked house (`plan/houses.yaml`) and the news, straight into the store |
 | `pipeline/analytics` | Python (polars/pandas) | Price stats, liquidity, time-to-sell, seasonality, event effects |
 | `pipeline/planner` | Python | Combine signals + `plan/calendar.yaml` + rules → daily/weekly plan. v0 (2026-10-11): sell / hold / repost / buy suggestions, each with its reason |
 | `dashboard/` | Jinja2 + Plotly → static HTML | Two pages (D22): **Today** — the planner's suggestions and why; **Market** — all tables and charts. Open locally or host privately. `dashboard/serve.py` serves them on localhost and gives the pages a Refresh button (D25) |
