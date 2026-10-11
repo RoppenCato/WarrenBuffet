@@ -89,6 +89,12 @@ def test_planner_sell_rules():
     launch = {r["item_id"]: r for r in planner.sell(held, books, ahl, phase="sell_to_levelers")}
     assert launch[3]["action"] == "sell" and "launch week" in launch[3]["why"]
 
+    # Added 2026-10-11: a fresh market has no history. The reason must say so, not invent a level.
+    fresh = {r["item_id"]: r for r in planner.sell({4: 100}, books, {})}
+    assert fresh[4]["action"] == "sell" and "No price history" in fresh[4]["why"] and "7-day" not in fresh[4]["why"]
+    fresh = {r["item_id"]: r for r in planner.sell({4: 100}, books, {}, phase="sell_to_levelers")}
+    assert "Launch week" in fresh[4]["why"]
+
 
 def test_planner_repost_and_buy():
     books = {1: [(100, 500)], 2: [(100, 500)], 3: [(10, 50)]}

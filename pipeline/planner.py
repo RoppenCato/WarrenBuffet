@@ -49,8 +49,16 @@ def sell(holdings: dict[int, int], books, ahl, phase: str | None = None) -> list
                                           "Wait unless you need the gold.")
         elif normal and price <= normal * HOLD_DISCOUNT:
             rec.update(action="sell", why="Price is under its 7-day median, but in launch week gold now beats gold later.")
-        else:
+        # Changed 2026-10-11: at launch there is no 7-day history at all. The old text claimed the
+        # price was "near its 7-day level" even when there was no such level to compare with.
+        # else:
+        #     rec.update(action="sell", why="Price is near its 7-day level. Sell when convenient.")
+        elif normal:
             rec.update(action="sell", why="Price is near its 7-day level. Sell when convenient.")
+        elif phase in NO_HOLD_PHASES:
+            rec.update(action="sell", why="No price history yet. Launch week: sell raw materials now, prices fall as supply catches up.")
+        else:
+            rec.update(action="sell", why="No price history for this item yet, so nothing to compare with. Sell when convenient.")
         out.append(rec)
     order = {"sell": 0, "hold": 1, "keep": 2, "price": 3}
     return sorted(out, key=lambda r: (order[r["action"]], -r["value"]))
