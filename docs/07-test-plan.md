@@ -9,9 +9,9 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T2 | Blizzard Game Data API has Forever auctions | Web | ⏳ (at launch) |
 | T3 | `ReplicateItems` full scan works in Forever client | Beta | ✅ 2026-10-11 |
 | T4 | SavedVariables size, write on logout, Python parse | Beta | ✅ 2026-10-11 |
-| T5 | Commodities included in replicate? AH type? | Beta | ✅ 2026-10-11 — included; neutral cut and deposit formula still open |
-| T6 | Ledger captures post/sold/bought/expired | Beta | ⚠️ 2026-10-11 — post, bought, cancelled seen; two bugs fixed, re-run needed; sold/expired not seen yet |
-| T7 | Own scan vs AHledger agree on same hour | Beta/launch | ⚠️ 2026-10-11 — close, but scans were 4 h apart |
+| T5 | Commodities included in replicate? AH type? | Beta | ✅ 2026-10-11 — included; deposit is at least 1s per post; neutral cut still open |
+| T6 | Ledger captures post/sold/bought/expired | Beta | ⚠️ 2026-10-11 — post, cancel, bought, cancelled correct in run 2; sold/expired not seen yet; money rows (v0.3) untested in game |
+| T7 | Own scan vs AHledger agree on same hour | Beta/launch | ✅ 2026-10-11 — medians within 2 %, mins within 1 copper, 6 min apart |
 | T8 | Scheduled hourly pull runs unattended for 48h | PC | ⏳ |
 
 ## T1 — AHledger API ✅
@@ -65,7 +65,8 @@ Result 2026-10-11 — **pass**:
 - Throttled request (`/fah scan` a few minutes later): **no reply at all** — no event, not an empty list. The 120 s timeout reported it. Docs/03 expected `n == 0`.
 - `GetReplicateItemTimeLeft` works: bands 1–4 on every row (1: 3,534 · 2: 10,592 · 3: 47,457 · 4: 17,854).
 - A Lua error followed every scan (`GetItemCommodityStatus` takes an ItemLocation, not an item id). The scan was already saved; fixed in v0.2.
-- Open: step 4 (does the next automatic scan run 15 min after a successful one, and does a throttled attempt restart the server's timer?).
+- Run 2 (16:41, v0.2): the scan started by itself on opening the AH and finished with no error — 84,070 rows of 84,070, wait 21.3 s, processing 1.2 s, slowest frame 50 ms, rows saved with the 6th field. `AUCTION_CANCELED` fired 28 times in the second the reply arrived, with auction ids that are not ours.
+- Open: does a throttled attempt restart the server's 15 min? (Run 2 was 5 h later, so it doesn't say.)
 
 ## T4 — SavedVariables
 
@@ -95,7 +96,7 @@ Result 2026-10-11 — **stackables are in the replicate results**; no per-item `
 - AH type: **retail-style**. The sell tab takes a quantity and a buyout price per item; our Linen and potion posts went through `PostCommodity`. Rows are one seller's quantity at one unit price (up to 10,000 units in a row); `buyout` in the replicate row is unit price × count on all 79k rows.
 - Bids barely exist: 1 row of 79,437 had a bid, 1 had no buyout, `minBid` was 0 on every row.
 - Durations: **2 h / 8 h / 24 h** (codes 1 / 2 / 3), not 12/24/48.
-- Deposit, two data points: 1 potion at 10c for 8 h → 0c; 13 Linen at 18c for 2 h → 8c. Formula still open.
+- Deposit: **1s was charged for each of three posts**, shown by the gold balance (339c → 134c = two posts + a 5c purchase; 134c → 19c = one post + a 15c purchase). `CalculateCommodityDeposit` had said 0c, 8c and 0c, so the API estimate is not what is charged — a 1s minimum fits all three. Cancelling did not give it back. Whether a sale refunds it is still open.
 - Not tested: neutral AH cut.
 
 ## T6 — Ledger
@@ -118,11 +119,31 @@ Result 2026-10-11 — **partial**:
 - Not seen yet: `sold`, `sold_pending`, `expired`, `outbid`. The potion posted for 8 h will give `sold` or `expired`.
 - Re-run needed for the v0.2 changes (cancel row, commodity buy row, no duplicate mail).
 
+Run 2, 2026-10-11 16:41 (v0.2) — the fixes hold:
+- `post` Linen ×1 at 17c → `cancel` with the same auction id (54678655) and cost 0. The join works.
+- `buy_commodity` Linen ×1, unit 15, total 15 → `buy_done` one second later → `bought` mail with total 15. All three agree.
+- One `bought` and one `cancelled` mail row, no duplicates.
+- `gold` at logout was 0 when the game was quit (correct on `/reload`). Fixed in v0.3: the last balance seen is logged.
+- v0.3 adds `money` rows (every balance change while the AH or mailbox is open) because the deposit estimate was wrong, and stops logging `AUCTION_CANCELED`. Untested in game.
+- Still not seen: `sold`, `sold_pending`, `expired`, `outbid`. The potion posted at 11:40 for 8 h ends at 19:40.
+
 ## T7 — Cross-source agreement
 
 Same item, same hour: own scan min/median vs AHledger. Expect min within 5 %, median within 10 %. Large deviations → investigate (different houses? stale data?).
 
-Result 2026-10-11 — **partial** (own scan 09:36 UTC, AHledger's newest 05:26 UTC, so not the same hour): Linen min 19 vs 20, median 27 vs 30; Copper Ore min 100 vs 135, median 150 vs 150. Auction counts within 0.02 %. Repeat when the two scans fall in the same hour. Source: [AHledger](https://ahledger.com).
+Result 2026-10-11, run 1 — partial (own scan 09:36 UTC, AHledger's newest 05:26 UTC, so not the same hour): Linen min 19 vs 20, median 27 vs 30; Copper Ore min 100 vs 135, median 150 vs 150. Auction counts within 0.02 %. Source: [AHledger](https://ahledger.com).
+
+Result 2026-10-11, run 2 — **pass** (own scan 14:41 UTC, AHledger 14:35 UTC). Source: [AHledger](https://ahledger.com).
+
+| | Own scan | AHledger |
+|---|---|---|
+| Auctions in house | 84,070 | 83,139 |
+| Linen Cloth min / median | 17 / 25 | 18 / 25 |
+| Linen Cloth units / auctions | 15,138 / 587 | 12,812 / 489 |
+| Copper Ore min / median | 141 / 148 | 141 / 145 |
+| Copper Ore units / auctions | 2,202 / 119 | 2,035 / 116 |
+
+Medians are within 2 %. Linen's min differs by 1 copper, which is 5.6 % at this price — the 5 % rule needs an absolute floor for cheap items. Linen quantity differs by 18 %; AHledger's hourly point an hour earlier (15,140 units) matches ours, so this looks like timing or their filtering, not a scan gap.
 
 ## T8 — Unattended pull
 

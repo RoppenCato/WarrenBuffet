@@ -43,7 +43,8 @@ Optional: if Auctionator is installed, read its prices through its public API fo
 
 - Posting: hook `AUCTION_HOUSE_AUCTION_CREATED` / owned-auction updates → item, qty, price, duration, deposit.
   - v0.1: `hooksecurefunc` on `PostItem` / `PostCommodity` remembers what the player posted (deposit from `CalculateItemDeposit` / `CalculateCommodityDeposit`); the row is written when `AUCTION_HOUSE_AUCTION_CREATED` gives the auction id.
-  - v0.2 (T6): `cancel` comes from the player's `CancelAuction` click (auction id + cancel cost). `AUCTION_CANCELED` carries no auction id in this client and is only kept as a `cancel_evt` probe row.
+  - v0.2 (T6): `cancel` comes from the player's `CancelAuction` click (auction id + cancel cost). `AUCTION_CANCELED` is not usable: no auction id on our own cancels, and it fires in bursts with other auctions' ids when a scan reply arrives. Not logged since v0.3.
+  - v0.3: `dep` on the post row is `Calculate*Deposit`, which under-reports (0–8c where 1s was charged). The `money` row after a post is the real cost (D18).
   - Buying, real time: `PlaceBid` hook → `bid`; `ConfirmCommoditiesPurchase` hook → `buy_commodity`; `AUCTION_HOUSE_PURCHASE_COMPLETED`, `ITEM_PURCHASED` → `buy_done`, `buy_item`. `COMMODITY_PURCHASED` did not fire in T6. The `bought` mail row is the record to trust.
   - Durations in Forever: code 1 = 2 h, 2 = 8 h, 3 = 24 h.
 - Outcomes from mail: sold (invoice: `GetInboxInvoiceInfo`), won/bought, expired, cancelled, outbid.
@@ -51,6 +52,7 @@ Optional: if Auctionator is installed, read its prices through its public API fo
   - The inbox's `daysLeft` is a snapshot from the last refresh, not a countdown; the expiry used for dedup is anchored to when each value was first seen (D17). Known limit: identical mails beyond the 50 visible inbox slots can be missed.
   - Row format: `ts,char,event,key=value,…,name=…` — see the `Ledger.lua` header.
 - Gold snapshot per character on login/logout (`GetMoney()`).
+  - `GetMoney()` is 0 while the game is quitting; v0.3 logs the last balance seen. `money` rows record every balance change while the AH or mailbox is open.
 - Crafting: `TRADE_SKILL` events → reagents consumed vs output (for real crafting margins). v2.
 - This is the only source of real P&L. Small data, keep forever.
 

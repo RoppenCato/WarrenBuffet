@@ -23,6 +23,7 @@ Lessons from Classic 2019, Season of Mastery, Season of Discovery, Hardcore and 
 - Low-tier mats (Peacebloom, Copper, Linen) start high and deflate fast as gathering catches up. [U] Typical: peak days 1–5, steep fall over 2–4 weeks.
 - Forever twist: starter-zone nodes deplete after 1–2 taps and mobs skin once → early mat scarcity may last longer than in 2019.
 - Deposits are a big share of value early — prefer short durations (2 h / 8 h / 24 h in Forever, seen in beta 2026-10-11) to limit losses on expiry.
+- Beta 2026-10-11: every post cost at least **1s**, even 1 Linen at 17c, and cancelling did not return it. Never post single cheap items — batch until the lot is worth far more than the deposit.
 - Don't buy anything speculative. Gold now is worth more than gold later.
 - **Signals:** `deflation_rate` per item (log-price slope over 48h); `sell_now` = deflation_rate < 0 and price ≥ 1.3× 7-day median → sell stock now rather than hold [thresholds tuned on data].
 
