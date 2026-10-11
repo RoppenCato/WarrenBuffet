@@ -44,6 +44,16 @@ def test_ledger_summary_infers_deposits_from_the_balance():
     s = analytics.ledger_summary(ledger)
     assert (s["first"], s["last"], s["bought"], s["sold"], s["other"], s["posts"]) == (339, 134, 5, 0, 200, 2)
 
+    # Added 2026-10-11: two characters in one ledger. The gatherer mails 50c to the trader.
+    ledger = [{"char": "Bank", "event": "gold", "copper": 1000}, {"char": "Main", "event": "gold", "copper": 300},
+              {"char": "Main", "event": "gold", "copper": 250},
+              {"char": "Bank", "event": "post"}, {"char": "Bank", "event": "money", "copper": 950, "delta": -100},
+              {"char": "Bank", "event": "sold", "total": 400, "fee": 20}, {"char": "Bank", "event": "gold", "copper": 1330}]
+    s = analytics.ledger_summary(ledger)
+    assert s["chars"]["Bank"] == {"posts": 1, "bought": 0, "sold": 380, "first": 1000, "last": 1330, "other": 50}
+    assert s["chars"]["Main"]["last"] == 250 and s["chars"]["Main"]["other"] == 50
+    assert (s["first"], s["last"], s["sold"], s["other"]) == (1300, 1580, 380, 100)
+
 
 def test_parse_pricetable():
     text = "AHL1|forever/normal/horde/us|1791729297|3\n2589:25:18:12812:32:59:3:104:150794\n720:32000:31000:10:67756:78722:17900\n55:200:200:1::::1300:0\n"

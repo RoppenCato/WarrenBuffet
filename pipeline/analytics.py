@@ -94,12 +94,42 @@ def underpriced(book_by_item, resale, sold_per_day, discount: float = 0.30, min_
     return sorted(out, key=lambda d: -d["profit"])
 
 
+# Changed 2026-10-11: several characters share one ledger (a bank alt trades, others gather).
+# Balances are tracked per character and then summed; the old version took the first and last
+# gold row of the whole ledger, which mixes characters up.
+# def ledger_summary(ledger) -> dict:
+#     """Own cash flow. `other` is what the balance lost beyond purchases and sales: deposits and
+#     fees. (From addon v0.3 the money rows give this directly.)"""
+#     bought = sum(r.get("total", 0) for r in ledger if r["event"] == "bought")
+#     sold = sum(r.get("total", 0) - r.get("fee", 0) for r in ledger if r["event"] == "sold")
+#     gold = [r["copper"] for r in ledger if r["event"] == "gold" and r.get("copper")]
+#     first, last = (gold[0], gold[-1]) if gold else (0, 0)
+#     return {"posts": sum(r["event"] == "post" for r in ledger), "bought": bought, "sold": sold,
+#             "first": first, "last": last, "other": first - last - bought + sold}
 def ledger_summary(ledger) -> dict:
-    """Own cash flow. `other` is what the balance lost beyond purchases and sales: deposits and
-    fees. (From addon v0.3 the money rows give this directly.)"""
-    bought = sum(r.get("total", 0) for r in ledger if r["event"] == "bought")
-    sold = sum(r.get("total", 0) - r.get("fee", 0) for r in ledger if r["event"] == "sold")
-    gold = [r["copper"] for r in ledger if r["event"] == "gold" and r.get("copper")]
-    first, last = (gold[0], gold[-1]) if gold else (0, 0)
-    return {"posts": sum(r["event"] == "post" for r in ledger), "bought": bought, "sold": sold,
-            "first": first, "last": last, "other": first - last - bought + sold}
+    """Own cash flow, summed over characters; `chars` has the same numbers per character.
+    `other` is what the balances lost beyond purchases and sales: deposits and fees. Gold mailed
+    between own characters cancels out in the sum."""
+    chars: dict[str, dict] = {}
+    for r in ledger:
+        if r.get("char") == "?":   # written before the character was known (addon before v0.5)
+            continue
+        c = chars.setdefault(r.get("char", ""), {"posts": 0, "bought": 0, "sold": 0, "balances": []})
+        if r["event"] == "post":
+            c["posts"] += 1
+        elif r["event"] == "bought":
+            c["bought"] += r.get("total", 0)
+        elif r["event"] == "sold":
+            c["sold"] += r.get("total", 0) - r.get("fee", 0)
+        elif r["event"] in ("gold", "money") and r.get("copper"):
+            c["balances"].append(r["copper"])
+    keys = ("posts", "bought", "sold", "first", "last", "other")
+    out = dict.fromkeys(keys, 0) | {"chars": {}}
+    for name, c in chars.items():
+        first, last = (c["balances"][0], c["balances"][-1]) if c["balances"] else (0, 0)
+        rec = {"posts": c["posts"], "bought": c["bought"], "sold": c["sold"], "first": first, "last": last,
+               "other": first - last - c["bought"] + c["sold"]}
+        out["chars"][name] = rec
+        for key in keys:
+            out[key] += rec[key]
+    return out

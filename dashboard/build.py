@@ -69,7 +69,12 @@ def build(sv: Path, market: str | None, pull: bool, out: Path) -> Path:
     scans = [s for s in db.get("scans") or [] if s.get("raw")]
     if not scans:
         raise SystemExit("no scan with raw rows in the SavedVariables file")
-    cur, prev = scans[-1], (scans[-2] if len(scans) > 1 else None)
+    # Changed 2026-10-11: alts on the other faction scan a different house, so "previous" must
+    # be the previous scan of the same house, not simply the one before.
+    # cur, prev = scans[-1], (scans[-2] if len(scans) > 1 else None)
+    cur = scans[-1]
+    house = [s for s in scans if (s["realm"], s["faction"]) == (cur["realm"], cur["faction"])]
+    prev = house[-2] if len(house) > 1 else None
     market = market or HOUSES.get((cur["realm"], cur["faction"]))
     if not market:
         raise SystemExit(f"no house id known for {cur['realm']} / {cur['faction']} - pass --market")
@@ -106,14 +111,35 @@ def build(sv: Path, market: str | None, pull: bool, out: Path) -> Path:
     # -- Today page inputs (added 2026-10-11): holdings, own auctions, calendar -> planner
     summary = analytics.ledger_summary(ledger)
     inventories = savedvars.inventory(db)
-    char = max(inventories, key=lambda c: inventories[c].get("bagsTs", 0), default=None)
-    inv = inventories.get(char, {"bags": {}, "bank": {}, "abank": {}, "auctions": []})
-    holdings = Counter(inv["bags"]) + Counter(inv["bank"]) + Counter(inv["abank"])
+    # Changed 2026-10-11: every character counts, not just the one seen last. Goods are added
+    # up across characters (they all end up with the trader); `where` remembers who holds what.
+    # char = max(inventories, key=lambda c: inventories[c].get("bagsTs", 0), default=None)
+    # inv = inventories.get(char, {"bags": {}, "bank": {}, "abank": {}, "auctions": []})
+    # holdings = Counter(inv["bags"]) + Counter(inv["bank"]) + Counter(inv["abank"])
+    trader = db.get("trader")
+    holdings, where, own_auctions = Counter(), {}, []
+    for who, rec in inventories.items():
+        mine = Counter(rec["bags"]) + Counter(rec["bank"])
+        holdings += mine
+        for item_id, units in mine.items():
+            where.setdefault(item_id, []).append(f"{who.split('-')[0]} {units:,}")
+        own_auctions += [dict(a, char=who.split("-")[0]) for a in rec["auctions"]]
+    shared = max(inventories.values(), key=lambda rec: rec.get("abankTs", 0), default={"abank": {}})["abank"]
+    holdings += Counter(shared)   # the account bank is one place: count its newest snapshot once
+    for item_id, units in shared.items():
+        where.setdefault(item_id, []).append(f"account bank {units:,}")
+    inv = {"auctions": own_auctions, "err": "; ".join(r["err"] for r in inventories.values() if r.get("err")) or None}
+    for key in ("bagsTs", "auctionsTs"):
+        seen = [r[key] for r in inventories.values() if key in r]
+        if seen:
+            inv[key] = max(seen)
+    budget = summary["chars"][trader]["last"] if trader in summary["chars"] else summary["last"]
     plan = yaml.safe_load((ROOT / "plan" / "calendar.yaml").read_text(encoding="utf-8"))
     cal = planner.calendar(plan, dt.date.today())
     sells = planner.sell(dict(holdings), book, ahl, cal["phase"]["id"] if cal["phase"] else None)
     reposts = planner.repost(inv["auctions"], book)
-    buys = planner.buy(book, ahl, summary["last"])
+    # buys = planner.buy(book, ahl, summary["last"])   (2026-10-11: the trader's gold is the budget)
+    buys = planner.buy(book, ahl, budget)
     wanted += list(holdings) + [a["item"] for a in inv["auctions"]] + [d["item_id"] for d in buys]
     names.update(ahledger.item_names(market, [i for i in wanted if i not in names], ROOT / "data"))
 
@@ -268,20 +294,31 @@ def build(sv: Path, market: str | None, pull: bool, out: Path) -> Path:
         "page": "today", "title": context["title"], "market": market, "attribution": ahledger.ATTRIBUTION,
         "generated": context["generated"], "scan_time": when(cur["ts"])[11:],
         "age": f"{age_min / 60:.0f} h {age_min % 60:.0f} min" if age_min >= 60 else f"{age_min:.0f} min",
-        "stale": age_min > 60, "balance": money(summary["last"]),
+        # "stale": age_min > 60, "balance": money(summary["last"]),   (2026-10-11: trader-aware)
+        "stale": age_min > 60,
+        "balance": f"{trader.split('-')[0]} has {money(budget)}" if trader in summary["chars"] else f"You have {money(budget)}",
         "has_inventory": "bagsTs" in inv, "inv_time": when(inv["bagsTs"])[11:] if "bagsTs" in inv else "",
         "has_auctions": "auctionsTs" in inv, "auctions_time": when(inv["auctionsTs"])[11:] if "auctionsTs" in inv else "",
         "inv_err": inv.get("err"),
         "tiles": [
-            {"label": "Gold", "value": money(summary["last"]), "note": f"{char or 'no character yet'}"},
+            # {"label": "Gold", "value": money(summary["last"]), "note": f"{char or 'no character yet'}"},
+            {"label": "Gold", "value": money(summary["last"]),
+             "note": f"{len(summary['chars'])} character{'s' if len(summary['chars']) != 1 else ''}"
+                     + (f", trader {trader.split('-')[0]}" if trader else ", no trader set (/fah trader)")},
             {"label": "Items held", "value": f"{len(holdings):,}", "note": "sellable, in bags and bank"},
             {"label": "Own auctions", "value": f"{len(active):,}", "note": "active"},
             {"label": "Next date", "value": f"{nxt['days']} days" if nxt else "-", "note": event_label(nxt["id"]) if nxt else ""},
         ],
+        # Changed 2026-10-11: who holds it / whose auction it is.
+        # "sells": [row(r, r["action"], price=money(r["price"]) if "price" in r else "",
+        #               net=money(r["net"]) if r["action"] in ("sell", "hold") else "") for r in sells],
+        # "reposts": [row(r, r["action"], price=money(r["price"]), cheapest=money(r["cheapest"]) if r["cheapest"] else "none",
+        #                 left=f"{r['hours']:.1f} h") for r in reposts],
         "sells": [row(r, r["action"], price=money(r["price"]) if "price" in r else "",
-                      net=money(r["net"]) if r["action"] in ("sell", "hold") else "") for r in sells],
+                      net=money(r["net"]) if r["action"] in ("sell", "hold") else "",
+                      where=", ".join(where.get(r["item_id"], []))) for r in sells],
         "reposts": [row(r, r["action"], price=money(r["price"]), cheapest=money(r["cheapest"]) if r["cheapest"] else "none",
-                        left=f"{r['hours']:.1f} h") for r in reposts],
+                        left=f"{r['hours']:.1f} h", char=r["char"]) for r in reposts],
         "buys": [row(d, "buy" if d["affordable"] else "short", max_price=money(d["max_price"]), resale=money(d["resale"]),
                      cost=money(d["cost"]), profit=money(d["profit"])) for d in buys],
         "phase": {"label": event_label(cal["phase"]["id"]), "focus": cal["phase"].get("focus", "")} if cal["phase"] else None,

@@ -66,7 +66,7 @@ def repost(auctions: list[dict], books) -> list[dict]:
         book = books.get(a["item"])
         cheapest = book[0][0] if book else None
         rec = {"item_id": a["item"], "units": a["qty"], "price": a["buyout"], "cheapest": cheapest,
-               "hours": a["seconds"] / 3600}
+               "hours": a["seconds"] / 3600, "char": a.get("char", "")}   # char added 2026-10-11
         if not cheapest or a["buyout"] <= cheapest * (1 + UNDERCUT):
             rec.update(action="leave", why="Yours is the cheapest, or within 5 % of it.")
         elif a["qty"] * cheapest < MIN_LOT_VALUE:

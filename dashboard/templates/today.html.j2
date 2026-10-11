@@ -48,11 +48,11 @@
     {% elif not sells %}
     <p class="why">Nothing sellable in your bags or bank ({{ inv_time }}).</p>
     {% else %}
-    <p class="why">What you hold in bags and bank ({{ inv_time }}), against the cheapest listing now.</p>
+    <p class="why">What all your characters hold in bags and bank (newest snapshot {{ inv_time }}), against the cheapest listing now.</p>
     <div class="scroll"><table>
-      <tr><th>Do</th><th>Item</th><th class="num">Units</th><th class="num">List at</th><th class="num">You get</th><th>Why</th></tr>
+      <tr><th>Do</th><th>Item</th><th class="num">Units</th><th>Held by</th><th class="num">List at</th><th class="num">You get</th><th>Why</th></tr>
       {% for r in sells %}<tr><td><span class="act{% if r.quiet %} quiet{% endif %}">{{ r.label }}</span></td><td>{{ r.name }}</td>
-        <td class="num">{{ "{:,}".format(r.units) }}</td><td class="num">{{ r.price }}</td><td class="num">{{ r.net }}</td>
+        <td class="num">{{ "{:,}".format(r.units) }}</td><td>{{ r.where }}</td><td class="num">{{ r.price }}</td><td class="num">{{ r.net }}</td>
         <td class="reason">{{ r.why }}</td></tr>{% endfor %}
     </table></div>
     <p class="note">"You get" is after a 5 % AH cut and a 1s deposit. 7-day medians and sold-per-day: <a href="{{ attribution.url }}">{{ attribution.text }}</a>.</p>
@@ -69,8 +69,8 @@
     {% else %}
     <p class="why">Your active auctions ({{ auctions_time }}) against the cheapest listing in the scan.</p>
     <div class="scroll"><table>
-      <tr><th>Do</th><th>Item</th><th class="num">Units</th><th class="num">Your price</th><th class="num">Cheapest now</th><th class="num">Time left</th><th>Why</th></tr>
-      {% for r in reposts %}<tr><td><span class="act{% if r.quiet %} quiet{% endif %}">{{ r.label }}</span></td><td>{{ r.name }}</td>
+      <tr><th>Do</th><th>Item</th><th>Posted by</th><th class="num">Units</th><th class="num">Your price</th><th class="num">Cheapest now</th><th class="num">Time left</th><th>Why</th></tr>
+      {% for r in reposts %}<tr><td><span class="act{% if r.quiet %} quiet{% endif %}">{{ r.label }}</span></td><td>{{ r.name }}</td><td>{{ r.char }}</td>
         <td class="num">{{ "{:,}".format(r.units) }}</td><td class="num">{{ r.price }}</td><td class="num">{{ r.cheapest }}</td>
         <td class="num">{{ r.left }}</td><td class="reason">{{ r.why }}</td></tr>{% endfor %}
     </table></div>
@@ -79,7 +79,7 @@
 
   <section class="card">
     <h2>Buy</h2>
-    <p class="why">Lots priced well under their normal level in items that sell fast, to relist. You have {{ balance }}.</p>
+    <p class="why">Lots priced well under their normal level in items that sell fast, to relist. {{ balance }}.</p>
     {% if buys %}
     <div class="scroll"><table>
       <tr><th>Do</th><th>Item</th><th class="num">Up to</th><th class="num">At or under</th><th class="num">Relist at</th><th class="num">Cost</th><th class="num">Est. profit</th><th>Why</th></tr>
