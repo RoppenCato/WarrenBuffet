@@ -19,6 +19,19 @@ local function Emit(quiet, fmt, ...)
   if not (ns.Log and ns.Log(msg, quiet)) then print("|cff33ccffForeverAH|r " .. msg) end
 end
 
+-- Added 2026-10-11 (v0.7): readable numbers and money for the window.
+function ns.Number(n)   -- 96635 -> 96,635
+  return BreakUpLargeNumbers and BreakUpLargeNumbers(n) or tostring(n)
+end
+
+function ns.Money(copper)   -- coin icons where the client can draw them, else "1g 2s 3c"
+  copper = math.floor(math.abs(copper or 0) + 0.5)
+  local coins = C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString or GetCoinTextureString
+  if coins then return coins(copper) end
+  local g, s, c = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
+  return (g > 0 and g .. "g " or "") .. ((g > 0 or s > 0) and s .. "s " or "") .. c .. "c"
+end
+
 function ns.Print(fmt, ...) Emit(false, fmt, ...) end   -- may open the window
 function ns.Note(fmt, ...) Emit(true, fmt, ...) end     -- never opens it; the button counts it
 
@@ -118,7 +131,8 @@ local function Status()
   -- Changed 2026-10-11: trader line and command added (several characters, one of them trades).
   -- ns.Print("/fah scan = scan now (AH open), /fah item <id> = item in latest scan")
   ns.Print("trader: %s", db.trader or "not set - type /fah trader on the character that sells")
-  ns.Print("/fah scan = scan now (AH open), /fah item <id> = item in latest scan, /fah trader = this character trades")
+  -- ns.Print("/fah scan = scan now (AH open), /fah item <id> = item in latest scan, /fah trader = this character trades")
+  ns.Print("/fah scan  /fah item <id>  /fah trader  /fah debug")   -- 2026-10-11: shortened, debug added
 end
 
 SLASH_FOREVERAH1 = "/fah"
@@ -133,6 +147,10 @@ SlashCmdList.FOREVERAH = function(msg)
   elseif cmd == "trader" then
     ns.db.trader = ns.char
     ns.Print("trader set to %s", ns.char)
+  -- Added 2026-10-11 (v0.7): the scan diagnostics used for the beta tests, off by default.
+  elseif cmd == "debug" then
+    ns.db.debug = not ns.db.debug
+    ns.Print("scan diagnostics %s", ns.db.debug and "on" or "off")
   else
     Status()
   end

@@ -82,13 +82,24 @@ local function Finish(s)
   db.lastScan = rec.ts
   state, scan = "idle", nil
 
-  ns.Print("scan saved: %d rows (AH reported %d), %d items, %d units",
-    rec.rows, rec.n, rec.items, rec.units)
-  ns.Print("wait %.1f s, process %.1f s in %d frames (slowest %d ms), hasAllInfo misses %d, skipped %d",
-    rec.waitSec, rec.procSec, rec.frames, rec.maxMs, rec.miss, rec.skip)
-  ns.Print("time-left bands: %s", rec.tl ~= "" and rec.tl or "not available")
-  for _, itemID in ipairs(CHECK) do ns.PrintItem(itemID, rec) end
-  ns.Print("/reload or log out to write SavedVariables")
+  -- Changed 2026-10-11 (v0.7): one readable line. The five lines below were for the beta tests
+  -- (T3-T5); they now only show with /fah debug.
+  -- ns.Print("scan saved: %d rows (AH reported %d), %d items, %d units",
+  --   rec.rows, rec.n, rec.items, rec.units)
+  -- ns.Print("wait %.1f s, process %.1f s in %d frames (slowest %d ms), hasAllInfo misses %d, skipped %d",
+  --   rec.waitSec, rec.procSec, rec.frames, rec.maxMs, rec.miss, rec.skip)
+  -- ns.Print("time-left bands: %s", rec.tl ~= "" and rec.tl or "not available")
+  -- for _, itemID in ipairs(CHECK) do ns.PrintItem(itemID, rec) end
+  -- ns.Print("/reload or log out to write SavedVariables")
+  ns.Print("|cffffd100Scan saved|r  %s auctions, %s items, %d s", ns.Number(rec.rows), ns.Number(rec.items),
+    math.floor(rec.waitSec + rec.procSec + 0.5))
+  if db.debug then
+    ns.Print("rows %d of %d reported, %d units", rec.rows, rec.n, rec.units)
+    ns.Print("wait %.1f s, process %.1f s in %d frames (slowest %d ms), hasAllInfo misses %d, skipped %d",
+      rec.waitSec, rec.procSec, rec.frames, rec.maxMs, rec.miss, rec.skip)
+    ns.Print("time-left bands: %s", rec.tl ~= "" and rec.tl or "not available")
+    for _, itemID in ipairs(CHECK) do ns.PrintItem(itemID, rec) end
+  end
   -- Added 2026-10-11: names and vendor prices of the items just seen (Items.lua).
   if ns.RecordItems then ns.RecordItems(s.ids) end
 end
@@ -242,7 +253,8 @@ function ns.Scan(force)
     ns.Print("last scan was %d min ago - the server will probably ignore this request",
       math.floor((now - ns.db.lastScan) / 60))
   end
-  ns.Print("requesting full scan - keep the AH open")
+  -- ns.Print("requesting full scan - keep the AH open")   (2026-10-11: plainer wording)
+  ns.Print("Scanning the auction house - keep it open")
   C_AuctionHouse.ReplicateItems()
 end
 

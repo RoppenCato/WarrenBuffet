@@ -37,6 +37,36 @@ local function KV(...)
   return table.concat(t, ",")
 end
 
+-- Added 2026-10-11 (v0.7): the window shows a sentence, not the saved row.
+local DURATION = { ["1"] = "2 h", ["2"] = "8 h", ["3"] = "24 h" }
+
+local function Describe(event, fields, name)
+  local f = {}
+  for key, value in (fields or ""):gmatch("([%w_]+)=([^,]*)") do f[key] = value end
+  local money = function(key) return ns.Money(tonumber(f[key]) or 0) end
+  local item = name or (f.item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(tonumber(f.item)))
+    or (f.item and "item " .. f.item) or "an item"
+  local stack = item .. (f.qty and " x" .. f.qty or "")
+  if event == "post" then
+    return ("Posted %s at %s%s%s"):format(stack, f.unit and money("unit") .. " each" or money("buyout"),
+      DURATION[f.dur] and " for " .. DURATION[f.dur] or "", f.item and "" or " (details unknown)")
+  elseif event == "cancel" then return "Cancelled an auction"
+  elseif event == "bid" then return "Bid or buyout placed: " .. money("total")
+  elseif event == "buy_commodity" then return ("Bought %s for %s"):format(stack, money("total"))
+  elseif event == "buy_done" or event == "buy_item" then return "Purchase completed"
+  elseif event == "sold" then return ("Sold %s for %s (AH cut %s)"):format(stack, money("total"), money("fee"))
+  elseif event == "sold_pending" then return ("Sale pending: %s for %s"):format(stack, money("total"))
+  elseif event == "bought" then return ("In the mail: %s, bought for %s"):format(stack, money("total"))
+  elseif event == "expired" then return "Expired, back in the mail: " .. stack
+  elseif event == "cancelled" then return "Cancelled, back in the mail: " .. stack
+  elseif event == "outbid" then return ("Outbid on %s, %s returned"):format(item, money("money"))
+  elseif event == "money" then
+    return ("%s%s at the %s, balance %s"):format((tonumber(f.delta) or 0) < 0 and "-" or "+", money("delta"),
+      f.at == "ah" and "auction house" or "mailbox", money("copper"))
+  end
+  return event .. (fields and fields ~= "" and " " .. fields or "")
+end
+
 local function Log(event, fields, name)
   -- Added 2026-10-11: a balance without a character is noise (a "?" row with 0 copper turned up
   -- on the beta), so gold rows wait until the character is known.
@@ -47,7 +77,8 @@ local function Log(event, fields, name)
   ns.db.ledger[#ns.db.ledger + 1] = row
   -- Changed 2026-10-11: a note - ledger lines are logged but never open the window.
   -- if event ~= "gold" then ns.Print("ledger: %s", row) end
-  if event ~= "gold" then ns.Note("ledger: %s", row) end
+  -- if event ~= "gold" then ns.Note("ledger: %s", row) end   (2026-10-11, v0.7: a sentence instead of the row)
+  if event ~= "gold" then ns.Note("%s", Describe(event, fields, name)) end
 end
 
 local function Try(fn, ...)

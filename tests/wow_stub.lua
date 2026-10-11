@@ -59,18 +59,36 @@ end
 -- function Fire(event, ...)
 --   if registered[event] then handler(nil, event, ...) end
 -- end
-local REGION = "SetPoint ClearAllPoints GetPoint SetAllPoints SetSize Show Hide IsShown SetShown"
+-- Changed 2026-10-11 (UI v0.7): more real method names (minimap button, bordered window), and
+-- the two Blizzard templates the window may use. Still strict: anything else raises.
+-- local REGION = "SetPoint ClearAllPoints GetPoint SetAllPoints SetSize Show Hide IsShown SetShown"
+-- local FRAME = REGION .. " RegisterEvent SetScript SetMovable EnableMouse RegisterForDrag StartMoving"
+--   .. " StopMovingOrSizing CreateTexture CreateFontString SetFrameStrata SetClampedToScreen EnableMouseWheel"
+-- local METHODS = {
+--   Frame = FRAME,
+--   Button = FRAME .. " RegisterForClicks",
+--   ScrollingMessageFrame = FRAME .. " AddMessage SetFontObject SetJustifyH SetFading SetMaxLines ScrollUp ScrollDown",
+--   Texture = REGION .. " SetColorTexture",
+--   FontString = REGION .. " SetText SetJustifyH",
+--   GameTooltip = "SetOwner SetText AddLine Show Hide",
+-- }
+-- local FONTS = { GameFontNormal = true, GameFontNormalSmall = true }
+local REGION = "SetPoint ClearAllPoints GetPoint SetAllPoints SetSize SetWidth SetHeight GetWidth GetCenter"
+  .. " Show Hide IsShown SetShown"
 local FRAME = REGION .. " RegisterEvent SetScript SetMovable EnableMouse RegisterForDrag StartMoving"
-  .. " StopMovingOrSizing CreateTexture CreateFontString SetFrameStrata SetClampedToScreen EnableMouseWheel"
+  .. " StopMovingOrSizing CreateTexture CreateFontString SetFrameStrata SetFrameLevel SetToplevel Raise"
+  .. " SetClampedToScreen EnableMouseWheel GetEffectiveScale"
 local METHODS = {
   Frame = FRAME,
-  Button = FRAME .. " RegisterForClicks",
+  Button = FRAME .. " RegisterForClicks SetHighlightTexture",
   ScrollingMessageFrame = FRAME .. " AddMessage SetFontObject SetJustifyH SetFading SetMaxLines ScrollUp ScrollDown",
-  Texture = REGION .. " SetColorTexture",
+  Texture = REGION .. " SetColorTexture SetTexture SetTexCoord",
   FontString = REGION .. " SetText SetJustifyH",
   GameTooltip = "SetOwner SetText AddLine Show Hide",
 }
-local FONTS = { GameFontNormal = true, GameFontNormalSmall = true }
+local TEMPLATES = { BackdropTemplate = " SetBackdrop SetBackdropColor SetBackdropBorderColor", UIPanelCloseButton = "" }
+local FONTS = { GameFontNormal = true, GameFontNormalSmall = true, GameFontHighlightSmall = true, NumberFontNormalSmall = true }
+NO_TEMPLATES = false   -- true: this client has none of the templates (tests the plain window)
 local widgets = {}
 BROKEN_WIDGET = nil   -- a widget kind CreateFrame should fail for, to test the chat fallback
 
@@ -80,9 +98,22 @@ function impl:RegisterEvent(event)
   self.events[event] = true
 end
 function impl:SetScript(name, fn) self.scripts[name] = fn end
-function impl:Show() self.shown = true end
-function impl:Hide() self.shown = false end
-function impl:SetShown(show) self.shown = show and true or false end
+-- Changed 2026-10-11: showing a hidden widget runs its OnShow script, as in the game.
+-- function impl:Show() self.shown = true end
+-- function impl:Hide() self.shown = false end
+-- function impl:SetShown(show) self.shown = show and true or false end
+function impl:SetShown(show)
+  local was = self.shown
+  self.shown = show and true or false
+  if self.shown and not was and self.scripts.OnShow then self.scripts.OnShow(self) end
+end
+function impl:Show() self:SetShown(true) end
+function impl:Hide() self:SetShown(false) end
+function impl:Raise() self.raised = self.raised + 1 end
+function impl:SetSize(width, height) self.width, self.height = width, height end
+function impl:GetWidth() return self.width end
+function impl:GetCenter() return 500, 500 end
+function impl:GetEffectiveScale() return 1 end
 function impl:IsShown() return self.shown end
 function impl:SetText(text) self.text = text end
 function impl:ClearAllPoints() self.point = nil end
@@ -100,10 +131,13 @@ function impl:CreateFontString(_, _, font)
   return fs
 end
 
-function Widget(kind)
+-- function Widget(kind)   (2026-10-11: `extra` = methods a template adds)
+function Widget(kind, extra)
   local allowed = {}
-  for name in METHODS[kind]:gmatch("%S+") do allowed[name] = true end
-  local w = { kind = kind, scripts = {}, events = {}, fontStrings = {}, shown = true }
+  -- for name in METHODS[kind]:gmatch("%S+") do allowed[name] = true end
+  for name in (METHODS[kind] .. (extra or "")):gmatch("%S+") do allowed[name] = true end
+  -- raised and width start with a value: a missing field would hit the strict check below
+  local w = { kind = kind, scripts = {}, events = {}, fontStrings = {}, shown = true, raised = 0, width = 140 }
   widgets[#widgets + 1] = w
   return setmetatable(w, { __index = function(_, name)
     if not allowed[name] then error(kind .. " has no method " .. tostring(name), 2) end
@@ -111,16 +145,48 @@ function Widget(kind)
   end })
 end
 
-function CreateFrame(kind, name, _, template)
-  if template then error("no Blizzard templates expected, got " .. tostring(template)) end
+-- Changed 2026-10-11: two templates are known; any other name, or NO_TEMPLATES, raises.
+-- function CreateFrame(kind, name, _, template)
+--   if template then error("no Blizzard templates expected, got " .. tostring(template)) end
+--   if kind == BROKEN_WIDGET then error("Couldn't create frame of type " .. kind) end
+--   local w = Widget(kind)
+--   if name then _G[name] = w end
+--   return w
+-- end
+function CreateFrame(kind, name, parent, template)
+  if template and (NO_TEMPLATES or not TEMPLATES[template]) then
+    error("Couldn't find inherited node: " .. tostring(template))
+  end
   if kind == BROKEN_WIDGET then error("Couldn't create frame of type " .. kind) end
-  local w = Widget(kind)
+  if parent == nil and select("#", name, parent) >= 2 and name == nil and kind ~= "Frame" then
+    error("CreateFrame: no parent given for " .. kind)
+  end
+  local w = Widget(kind, template and TEMPLATES[template])
+  w.parent = parent
   if name then _G[name] = w end
   return w
 end
 
 UIParent = Widget("Frame")
 GameTooltip = Widget("GameTooltip")
+-- Added 2026-10-11 (UI v0.7)
+Minimap = Widget("Frame")              -- set to nil in a test for a client without one
+AuctionHouseFrame = Widget("Frame")
+CURSOR = { 600, 500 }
+function GetCursorPosition() return CURSOR[1], CURSOR[2] end
+function BreakUpLargeNumbers(n)
+  local s = tostring(math.floor(n))
+  while true do
+    local changed
+    s, changed = s:gsub("^(%d+)(%d%d%d)", "%1,%2")
+    if changed == 0 then return s end
+  end
+end
+C_CurrencyInfo = { GetCoinTextureString = function(copper)
+  if type(copper) ~= "number" then error("bad argument #1 to 'GetCoinTextureString'") end
+  local g, s, c = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
+  return (g > 0 and g .. "g " or "") .. ((g > 0 or s > 0) and s .. "s " or "") .. c .. "c"
+end }
 GameFontHighlightSmall = {}
 
 function Fire(event, ...)

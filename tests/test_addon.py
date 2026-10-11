@@ -26,12 +26,18 @@ class Game:
     # Changed 2026-10-11: broken_widget added, to test the chat fallback of UI.lua.
     # def __init__(self, unknown_events=()):
     # def __init__(self, unknown_events=(), broken_widget=None):   (2026-10-11: player_name added)
-    def __init__(self, unknown_events=(), broken_widget=None, player_name="Tester"):
+    # def __init__(self, unknown_events=(), broken_widget=None, player_name="Tester"):
+    # (2026-10-11: no_templates and no_minimap added, for the UI's fallback looks)
+    def __init__(self, unknown_events=(), broken_widget=None, player_name="Tester", no_templates=False,
+                 no_minimap=False):
         self.lua = LuaRuntime(register_eval=False, register_builtins=False)
         self.lua.execute((ROOT / "tests" / "wow_stub.lua").read_text(encoding="utf-8"))
         self.g = self.lua.globals()
         self.g.BROKEN_WIDGET = broken_widget
         self.g.PLAYER_NAME = player_name
+        self.g.NO_TEMPLATES = no_templates
+        if no_minimap:
+            self.lua.execute("Minimap = nil")
         for event in unknown_events:
             self.g.UNKNOWN_EVENTS[event] = True
         toc = (ADDON / "ForeverAH.toc").read_text(encoding="utf-8").splitlines()
@@ -95,6 +101,7 @@ def make_auctions(n, n_items, seed=1):
 
 def test_scan_saves_rows_and_aggregates():
     game = Game()
+    game.slash("debug")                                   # 2026-10-11: the T5 lines are diagnostics now
     auctions = make_auctions(12_345, 300)
     auctions.insert(100, [0, 1, 500, 100, 0, False, 1])   # no item id -> skipped
     game.set_auctions(auctions)
@@ -212,7 +219,8 @@ def test_abort_on_close_and_timeout():
     game.frames(2)
     assert "no reply in 120 s" in game.printed()[-1]
     game.slash("scan")                       # state is clean again
-    assert "requesting full scan" in game.printed()[-1]
+    # assert "requesting full scan" in game.printed()[-1]   (2026-10-11: reworded)
+    assert "Scanning the auction house" in game.printed()[-1]
 
 
 def test_missing_events_do_not_break_the_addon():
