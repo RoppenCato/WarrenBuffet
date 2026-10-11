@@ -210,7 +210,9 @@ function ns.Scan(force)
   local now = GetServerTime()
   local wait = THROTTLE - (now - (ns.db.lastScan or 0))
   if wait > 0 and not force then
-    return ns.Print("next scan in %d min (/fah scan to try anyway)", math.ceil(wait / 60))
+    -- Changed 2026-10-11: a note, so opening the AH between scans does not pop the window up.
+    -- return ns.Print("next scan in %d min (/fah scan to try anyway)", math.ceil(wait / 60))
+    return ns.Note("next scan in %d min (/fah scan to try anyway)", math.ceil(wait / 60))
   end
   local realm, faction = GetRealmName(), UnitFactionGroup("player") or "?"
   local s = {

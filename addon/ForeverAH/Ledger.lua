@@ -42,7 +42,9 @@ local function Log(event, fields, name)
   if fields and fields ~= "" then row = row .. "," .. fields end
   if name then row = row .. ",name=" .. name end
   ns.db.ledger[#ns.db.ledger + 1] = row
-  if event ~= "gold" then ns.Print("ledger: %s", row) end
+  -- Changed 2026-10-11: a note - ledger lines are logged but never open the window.
+  -- if event ~= "gold" then ns.Print("ledger: %s", row) end
+  if event ~= "gold" then ns.Note("ledger: %s", row) end
 end
 
 local function Try(fn, ...)

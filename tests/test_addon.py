@@ -23,10 +23,13 @@ ADDON = ROOT / "addon" / "ForeverAH"
 
 
 class Game:
-    def __init__(self, unknown_events=()):
+    # Changed 2026-10-11: broken_widget added, to test the chat fallback of UI.lua.
+    # def __init__(self, unknown_events=()):
+    def __init__(self, unknown_events=(), broken_widget=None):
         self.lua = LuaRuntime(register_eval=False, register_builtins=False)
         self.lua.execute((ROOT / "tests" / "wow_stub.lua").read_text(encoding="utf-8"))
         self.g = self.lua.globals()
+        self.g.BROKEN_WIDGET = broken_widget
         for event in unknown_events:
             self.g.UNKNOWN_EVENTS[event] = True
         toc = (ADDON / "ForeverAH.toc").read_text(encoding="utf-8").splitlines()

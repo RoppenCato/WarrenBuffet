@@ -3,11 +3,15 @@
 -- the addon's logic, not that Forever behaves this way. That is what T3-T6 are for.
 
 local now, clock = 1760180000, 0   -- server time (s), frame clock (ms)
-local timers, handler, registered = {}, nil, {}
+-- Changed 2026-10-11: frames are widgets now (see Widget below); the single handler is gone.
+-- local timers, handler, registered = {}, nil, {}
+local timers = {}
 local replicated, lastReplicate = {}, -1e9
 
 UNKNOWN_EVENTS = {}   -- events RegisterEvent should reject
-PRINTED = {}
+PRINTED = {}          -- every message, chat and window, in order
+CHAT = {}             -- what went to the chat frame via print()
+WINDOW = {}           -- what went to the addon's own window
 AUCTIONS = {}         -- { {itemID, count, buyout, minBid, bid, hasAllInfo, timeLeft}, ... }
 REPLICATE_CALLS = 0
 INBOX = {}            -- { {subject=, money=, expires=, invoice=, name=, bid=, ...}, ... }
@@ -18,6 +22,7 @@ function print(...)
   local t = {}
   for i = 1, select("#", ...) do t[#t + 1] = tostring((select(i, ...))) end
   PRINTED[#PRINTED + 1] = table.concat(t, " ")
+  CHAT[#CHAT + 1] = PRINTED[#PRINTED]
 end
 
 function GetServerTime() return now end
@@ -38,18 +43,95 @@ function Frame()
   end
 end
 
-function CreateFrame()
-  local f = {}
-  function f:RegisterEvent(event)
-    if UNKNOWN_EVENTS[event] then error("Attempt to register unknown event " .. event) end
-    registered[event] = true
-  end
-  function f:SetScript(_, fn) handler = fn end
-  return f
+-- Changed 2026-10-11 for UI.lua: widgets only have the methods listed here, and raise on any
+-- other name. The first stub accepted every call, which is how a wrong API call reached the
+-- beta (GetItemCommodityStatus). The lists are the real method names the addon uses.
+-- function CreateFrame()
+--   local f = {}
+--   function f:RegisterEvent(event)
+--     if UNKNOWN_EVENTS[event] then error("Attempt to register unknown event " .. event) end
+--     registered[event] = true
+--   end
+--   function f:SetScript(_, fn) handler = fn end
+--   return f
+-- end
+--
+-- function Fire(event, ...)
+--   if registered[event] then handler(nil, event, ...) end
+-- end
+local REGION = "SetPoint ClearAllPoints GetPoint SetAllPoints SetSize Show Hide IsShown SetShown"
+local FRAME = REGION .. " RegisterEvent SetScript SetMovable EnableMouse RegisterForDrag StartMoving"
+  .. " StopMovingOrSizing CreateTexture CreateFontString SetFrameStrata SetClampedToScreen EnableMouseWheel"
+local METHODS = {
+  Frame = FRAME,
+  Button = FRAME .. " RegisterForClicks",
+  ScrollingMessageFrame = FRAME .. " AddMessage SetFontObject SetJustifyH SetFading SetMaxLines ScrollUp ScrollDown",
+  Texture = REGION .. " SetColorTexture",
+  FontString = REGION .. " SetText SetJustifyH",
+  GameTooltip = "SetOwner SetText AddLine Show Hide",
+}
+local FONTS = { GameFontNormal = true, GameFontNormalSmall = true }
+local widgets = {}
+BROKEN_WIDGET = nil   -- a widget kind CreateFrame should fail for, to test the chat fallback
+
+local impl = {}
+function impl:RegisterEvent(event)
+  if UNKNOWN_EVENTS[event] then error("Attempt to register unknown event " .. event) end
+  self.events[event] = true
+end
+function impl:SetScript(name, fn) self.scripts[name] = fn end
+function impl:Show() self.shown = true end
+function impl:Hide() self.shown = false end
+function impl:SetShown(show) self.shown = show and true or false end
+function impl:IsShown() return self.shown end
+function impl:SetText(text) self.text = text end
+function impl:ClearAllPoints() self.point = nil end
+function impl:SetPoint(point, relativeTo, relativePoint, x, y) self.point = { point, relativeTo, relativePoint, x, y } end
+function impl:GetPoint() return unpack(self.point, 1, 5) end
+function impl:AddMessage(text)
+  WINDOW[#WINDOW + 1] = text
+  PRINTED[#PRINTED + 1] = text
+end
+function impl:CreateTexture() return Widget("Texture") end
+function impl:CreateFontString(_, _, font)
+  if not FONTS[font] then error("unknown font object " .. tostring(font)) end
+  local fs = Widget("FontString")
+  self.fontStrings[#self.fontStrings + 1] = fs   -- so tests can read a label
+  return fs
 end
 
+function Widget(kind)
+  local allowed = {}
+  for name in METHODS[kind]:gmatch("%S+") do allowed[name] = true end
+  local w = { kind = kind, scripts = {}, events = {}, fontStrings = {}, shown = true }
+  widgets[#widgets + 1] = w
+  return setmetatable(w, { __index = function(_, name)
+    if not allowed[name] then error(kind .. " has no method " .. tostring(name), 2) end
+    return impl[name] or function() end
+  end })
+end
+
+function CreateFrame(kind, name, _, template)
+  if template then error("no Blizzard templates expected, got " .. tostring(template)) end
+  if kind == BROKEN_WIDGET then error("Couldn't create frame of type " .. kind) end
+  local w = Widget(kind)
+  if name then _G[name] = w end
+  return w
+end
+
+UIParent = Widget("Frame")
+GameTooltip = Widget("GameTooltip")
+GameFontHighlightSmall = {}
+
 function Fire(event, ...)
-  if registered[event] then handler(nil, event, ...) end
+  for _, w in ipairs(widgets) do
+    if w.events[event] and w.scripts.OnEvent then w.scripts.OnEvent(w, event, ...) end
+  end
+end
+
+function RunScript(name, script, ...)   -- e.g. RunScript("ForeverAHButton", "OnClick", "LeftButton")
+  local w = _G[name]
+  return w.scripts[script](w, ...)
 end
 
 function hooksecurefunc(tbl, name, hook)

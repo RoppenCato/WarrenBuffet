@@ -9,9 +9,18 @@ ns.missingEvents = {}
 local handlers = {}
 local frame = CreateFrame("Frame")
 
-function ns.Print(fmt, ...)
-  print("|cff33ccffForeverAH|r " .. (select("#", ...) > 0 and fmt:format(...) or fmt))
+-- Changed 2026-10-11: messages go to the addon's own window (UI.lua) instead of the chat frame,
+-- which got noisy. Chat is only the fallback when the window could not be built.
+-- function ns.Print(fmt, ...)
+--   print("|cff33ccffForeverAH|r " .. (select("#", ...) > 0 and fmt:format(...) or fmt))
+-- end
+local function Emit(quiet, fmt, ...)
+  local msg = select("#", ...) > 0 and fmt:format(...) or fmt
+  if not (ns.Log and ns.Log(msg, quiet)) then print("|cff33ccffForeverAH|r " .. msg) end
 end
+
+function ns.Print(fmt, ...) Emit(false, fmt, ...) end   -- may open the window
+function ns.Note(fmt, ...) Emit(true, fmt, ...) end     -- never opens it; the button counts it
 
 -- pcall: RegisterEvent raises on events the client doesn't know. We want a list of
 -- those (T6), not a broken addon.
@@ -41,6 +50,7 @@ ns.On("ADDON_LOADED", function(name)
   db.ledger = db.ledger or {}      -- see Ledger.lua
   db.mailSeen = db.mailSeen or {}  -- mail dedup, see Ledger.lua
   db.inv = db.inv or {}            -- added 2026-10-11: holdings per character, see Inventory.lua
+  db.ui = db.ui or {}              -- added 2026-10-11: window and button state, see UI.lua
   ns.db = db
 end)
 
@@ -69,7 +79,10 @@ local function Status()
     ns.Print("events missing in this client: %s", table.concat(ns.missingEvents, ", "))
   end
   ns.InventoryStatus()   -- added 2026-10-11 with Inventory.lua
-  ns.Print("/fah scan = scan now (AH open), /fah item <id> = item in latest scan")
+  -- Changed 2026-10-11: trader line and command added (several characters, one of them trades).
+  -- ns.Print("/fah scan = scan now (AH open), /fah item <id> = item in latest scan")
+  ns.Print("trader: %s", db.trader or "not set - type /fah trader on the character that sells")
+  ns.Print("/fah scan = scan now (AH open), /fah item <id> = item in latest scan, /fah trader = this character trades")
 end
 
 SLASH_FOREVERAH1 = "/fah"
@@ -79,6 +92,11 @@ SlashCmdList.FOREVERAH = function(msg)
     ns.Scan(true)
   elseif cmd == "item" and tonumber(arg) then
     ns.PrintItem(tonumber(arg))
+  -- Added 2026-10-11: mark this character as the one that buys and sells. Scans, the ledger and
+  -- the inventory work on every character; the dashboard needs to know whose gold to plan with.
+  elseif cmd == "trader" then
+    ns.db.trader = ns.char
+    ns.Print("trader set to %s", ns.char)
   else
     Status()
   end
