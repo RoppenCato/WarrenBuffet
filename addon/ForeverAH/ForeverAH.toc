@@ -1,4 +1,7 @@
-## Interface: 120105
+# Changed 2026-10-11: 120105 was a guess from "Mainline 12.1.5 API". The installed beta client is
+# 1.60.1.70338, which by Blizzard's numbering is 16001. Confirm with /dump select(4, GetBuildInfo()).
+# ## Interface: 120105
+## Interface: 16001
 ## Title: ForeverAH
 ## Notes: AH scanner and own-transaction ledger. Reads and displays only - never posts, buys, bids or cancels.
 ## Version: 0.1.0

@@ -11,6 +11,10 @@
 
 local _, ns = ...
 
+-- Added 2026-10-11: if this client has no Mainline AH namespace, skip the AH hooks instead of
+-- erroring at load. Mail and gold rows still work; Scanner.lua reports the missing API.
+local C_AuctionHouse = C_AuctionHouse or {}
+
 local MAIL_TOL = 2   -- s; a mail is the same mail if its expiry time matches within this
 
 local function KV(...)

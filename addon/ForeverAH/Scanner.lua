@@ -183,6 +183,11 @@ end
 
 -- force = true skips our own 15-min timer (the server throttle still applies).
 function ns.Scan(force)
+  -- Added 2026-10-11: a clear message instead of a Lua error if the Mainline scan API is absent
+  -- (that would itself be the T3 result).
+  if not (C_AuctionHouse and C_AuctionHouse.ReplicateItems) then
+    return ns.Print("C_AuctionHouse.ReplicateItems is missing in this client - cannot scan")
+  end
   if state ~= "idle" then return ns.Print("scan already %s", state) end
   if not ahOpen then return ns.Print("open the auction house first") end
   local now = GetServerTime()
