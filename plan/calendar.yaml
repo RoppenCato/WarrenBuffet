@@ -1,0 +1,74 @@
+# Built-in plan: milestones and phase windows. Read by pipeline/planner.
+# Times: ISO 8601 with offset. status: confirmed (Blizzard) | reported | hypothesis | tbd
+# tags: link events to watchlist categories so the planner can track pre/post-event drift.
+
+events:
+  - id: beta_end
+    start: 2026-10-22T06:00:00+02:00   # Oct 21 PST
+    status: confirmed
+    note: Beta ends. Last chance for in-game tests T3-T6.
+
+  - id: name_reservation
+    start: 2026-10-27
+    end: 2026-11-03
+    status: confirmed
+
+  - id: launch
+    start: 2026-11-05T00:00:00+01:00   # Nov 4 15:00 PST
+    status: confirmed
+    tags: [leveling_mats, bags, leveling_consumables]
+
+  - id: invite_a_friend
+    start: 2026-11-04
+    end: 2026-11-11
+    status: reported
+
+  - id: raids_unlock
+    start: 2026-12-09
+    status: confirmed
+    note: Barrow Deeps (10), Hyjal Summit (20), Onyxia's Lair (40)
+    tags: [raid_consumables, enchanting_mats, endgame_mats]
+
+  - id: holidays
+    start: 2026-12-19
+    end: 2027-01-06
+    status: hypothesis
+    note: More playtime -> more demand (and supply).
+
+  - id: hardcore_launch
+    start: null                         # winter 2026/27
+    status: tbd
+    note: Separate AH -> replay launch playbook.
+    tags: [leveling_mats, bags, leveling_consumables]
+
+  - id: spring_2027_update
+    start: null
+    status: tbd
+    note: 2 raids, 2 dungeons, legendary questline, PvP refresh.
+
+  - id: summer_2027_update
+    start: null
+    status: tbd
+    note: Revamped classic raid + new raid, profession + Legacy updates.
+
+phases:
+  - id: sell_to_levelers
+    from: launch
+    days: 7
+    focus: Sell raw cloth/ore/herbs/leather, bags, leveling consumables. Short durations. No speculation.
+  - id: levelers_to_60
+    from_date: 2026-11-12
+    to_date: 2026-12-01
+    focus: Buy endgame mats below 30d p25 (vendor-capped ones below 50g). Start cooldowns.
+  - id: pre_raid
+    from_date: 2026-12-01
+    to_date: 2026-12-08
+    focus: Stock flasks/elixirs/potions/food/enchants. Sell part into hype.
+  - id: raid_economy
+    from: raids_unlock
+    focus: Weekly cycle - buy Thu-Mon, sell Tue-Wed.
+
+weekly:
+  reset_day: wednesday      # EU - confirm for Forever
+  buy_days: [thursday, friday, saturday, sunday, monday]
+  sell_days: [tuesday, wednesday]

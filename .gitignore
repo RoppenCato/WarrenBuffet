@@ -1,0 +1,8 @@
+data/
+dashboard/site/
+*.parquet
+*.duckdb
+.env
+__pycache__/
+.venv/
+addon/ForeverAH/ForeverAH_Plan.lua

@@ -1,0 +1,56 @@
+# Seed watchlist. Item IDs from Classic; verify each exists in Forever.
+# seen_beta: present in AHledger pricetable forever.pvp.horde.us on 2026-10-11 (beta cap 30,
+#            so level 50-60 items are expected to be missing until launch).
+# vendor_cap: Black Market vendor price in gold (beta) - acts as price ceiling.
+
+categories:
+  leveling_mats:
+    - {id: 2589,  name: Linen Cloth,     seen_beta: true}
+    - {id: 2592,  name: Wool Cloth,      seen_beta: true}
+    - {id: 4306,  name: Silk Cloth,      seen_beta: true}
+    - {id: 4338,  name: Mageweave Cloth, seen_beta: true}
+    - {id: 2770,  name: Copper Ore,      seen_beta: true}
+    - {id: 2771,  name: Tin Ore,         seen_beta: true}
+    - {id: 2772,  name: Iron Ore,        seen_beta: true}
+    - {id: 3858,  name: Mithril Ore,     seen_beta: true}
+    - {id: 2840,  name: Copper Bar,      seen_beta: true}
+    - {id: 2447,  name: Peacebloom,      seen_beta: true}
+    - {id: 765,   name: Silverleaf,      seen_beta: true}
+    - {id: 2318,  name: Light Leather,   seen_beta: true}
+    - {id: 2319,  name: Medium Leather,  seen_beta: true}
+    - {id: 4234,  name: Heavy Leather,   seen_beta: true}
+    - {id: 4304,  name: Thick Leather,   seen_beta: true}
+
+  bags:
+    - {id: 4238,  name: Linen Bag,       seen_beta: true}
+
+  endgame_mats:
+    - {id: 14047, name: Runecloth,       seen_beta: false}
+    - {id: 10620, name: Thorium Ore,     seen_beta: false}
+    - {id: 13468, name: Black Lotus,     seen_beta: false, vendor_cap: 50}
+    - {id: 12363, name: Arcane Crystal,  seen_beta: false, vendor_cap: 50}
+    - {id: 12360, name: Arcanite Bar,    seen_beta: false}
+    - {id: 15417, name: Devilsaur Leather, seen_beta: false}
+    - {id: 14342, name: Mooncloth,       seen_beta: false}
+    - {id: 14256, name: Felcloth,        seen_beta: false}
+    - {id: 12361, name: Blue Sapphire,   seen_beta: false}
+    - {id: 7080,  name: Essence of Water, seen_beta: false}
+
+  stock_while_leveling:          # cheap from levelers, demanded at 60
+    - {id: 2452,  name: Swiftthistle,    seen_beta: true}
+    - {id: 4402,  name: Small Flame Sac, seen_beta: true}
+    - {id: 13926, name: Golden Pearl,    seen_beta: false}
+
+  enchanting_mats:
+    - {id: 14344, name: Large Brilliant Shard, seen_beta: false}
+
+  raid_consumables:
+    - {id: 13452, name: Elixir of the Mongoose, seen_beta: false}
+    - {id: 13510, name: Flask of the Titans,    seen_beta: false}
+
+  scarce_mats:                   # Forever-only; IDs unknown - fill from beta/launch data
+    - {id: null, name: Pyrite}
+    - {id: null, name: Frilled Lichen}
+    - {id: null, name: Pristine Leather}
+    - {id: null, name: Fel Crystal}
+    - {id: null, name: Stranglevine}
