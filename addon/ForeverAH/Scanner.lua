@@ -2,7 +2,11 @@
 -- Read-only: requests and reads the auction list, nothing else.
 --
 -- Saved per scan (ForeverAHDB.scans[i]):
---   header fields + raw = { "itemID,count,buyout,minBid,bid;..." }   (last KEEP_RAW scans)
+-- Changed 2026-10-11 (D15): raw rows got a 6th field, the time-left band (1 shortest .. 4 longest,
+-- 0 unknown). Scans saved before this have 5 fields. buyout is the total for the row (unit price
+-- x count) - confirmed on beta data.
+-- --   header fields + raw = { "itemID,count,buyout,minBid,bid;..." }   (last KEEP_RAW scans)
+--   header fields + raw = { "itemID,count,buyout,minBid,bid,timeLeft;..." }   (last KEEP_RAW scans)
 --                 + agg = { "itemID,min,p10,p25,median,qty,auctions;..." }
 -- Aggregate prices are buyout per unit in copper (rounded, at least 1), quantity-weighted:
 -- pX = lowest unit price where cumulative units >= X % of the units that have a buyout.
@@ -128,7 +132,8 @@ local function ProcessChunk(s)
   local t = debugprofilestop()
   local rec, items, ids, tlCount = s.rec, s.items, s.ids, s.tl
   local GetInfo = C_AuctionHouse.GetReplicateItemInfo
-  -- Probe only: docs/02 assumes no time left. If this exists and returns bands, we can do better.
+  -- Changed 2026-10-11 (D15): no longer a probe - it returns bands 1-4 in Forever.
+  -- -- Probe only: docs/02 assumes no time left. If this exists and returns bands, we can do better.
   local GetTimeLeft = C_AuctionHouse.GetReplicateItemTimeLeft
   local rows, r = {}, 0
   local last = math.min(s.i + CHUNK, rec.n) - 1
@@ -142,7 +147,12 @@ local function ProcessChunk(s)
       if not hasAllInfo then rec.miss = rec.miss + 1 end
       buyout, minBid, bid = buyout or 0, minBid or 0, bid or 0
       r = r + 1
-      rows[r] = itemID .. "," .. count .. "," .. buyout .. "," .. minBid .. "," .. bid
+      -- Changed 2026-10-11 (D15): GetReplicateItemTimeLeft works in Forever (T3: bands 1-4), so
+      -- the band is saved as a 6th field. 0 = not available.
+      -- rows[r] = itemID .. "," .. count .. "," .. buyout .. "," .. minBid .. "," .. bid
+      local band = GetTimeLeft and GetTimeLeft(idx) or 0
+      tlCount[band] = (tlCount[band] or 0) + 1
+      rows[r] = itemID .. "," .. count .. "," .. buyout .. "," .. minBid .. "," .. bid .. "," .. band
 
       local it = items[itemID]
       if not it then
@@ -166,10 +176,11 @@ local function ProcessChunk(s)
         end
         it.bqty = it.bqty + count
       end
-      if GetTimeLeft then
-        local band = GetTimeLeft(idx)
-        if band then tlCount[band] = (tlCount[band] or 0) + 1 end
-      end
+      -- Changed 2026-10-11 (D15): moved up, the band is part of the row now.
+      -- if GetTimeLeft then
+      --   local band = GetTimeLeft(idx)
+      --   if band then tlCount[band] = (tlCount[band] or 0) + 1 end
+      -- end
     end
   end
   if r > 0 then rec.raw[#rec.raw + 1] = table.concat(rows, ";") .. ";" end

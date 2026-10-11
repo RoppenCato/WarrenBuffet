@@ -43,7 +43,13 @@ def _split(chunks) -> list[tuple[int, ...]]:
 
 
 def raw_rows(scan: dict) -> list[tuple[int, ...]]:
-    """[(item_id, count, buyout, min_bid, bid), ...] - empty if the addon already dropped raw."""
+    # Changed 2026-10-11 (D15): rows carry a 6th field, the time-left band, from addon v0.2 on.
+    # """[(item_id, count, buyout, min_bid, bid), ...] - empty if the addon already dropped raw."""
+    """[(item_id, count, buyout, min_bid, bid[, time_left]), ...] - empty if the addon dropped raw.
+
+    buyout is the total for the row. time_left is a band, 1 shortest .. 4 longest, 0 unknown;
+    scans from before 2026-10-11 have no 6th field.
+    """
     return _split(scan.get("raw"))
 
 
@@ -55,7 +61,10 @@ def agg_rows(scan: dict) -> dict[int, tuple[int, ...]]:
 def aggregate(rows) -> dict[int, tuple[int, ...]]:
     """Per-item aggregates from raw rows. Must match Scanner.lua exactly (see its header)."""
     items: dict[int, list] = {}
-    for item_id, count, buyout, _min_bid, _bid in rows:
+    # Changed 2026-10-11 (D15): rows may have 5 or 6 fields; only the first three are used here.
+    # for item_id, count, buyout, _min_bid, _bid in rows:
+    for row in rows:
+        item_id, count, buyout = row[:3]
         it = items.setdefault(item_id, [0, 0, {}])
         it[0] += count
         it[1] += 1

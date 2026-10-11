@@ -101,7 +101,9 @@ def test_scan_saves_rows_and_aggregates():
     db = game.db()
     assert len(db["scans"]) == 1, game.printed()
     scan = db["scans"][0]
-    expected = [tuple(a[:5]) for a in auctions if a[0]]
+    # Changed 2026-10-11 (D15): the time-left band is saved as a 6th field.
+    # expected = [tuple(a[:5]) for a in auctions if a[0]]
+    expected = [tuple(a[:5]) + (a[6],) for a in auctions if a[0]]
     assert savedvars.raw_rows(scan) == expected
     assert savedvars.agg_rows(scan) == savedvars.aggregate(expected)
     assert (scan["n"], scan["rows"], scan["skip"]) == (12_346, 12_345, 1)
