@@ -4,7 +4,7 @@
 
 | Source | Coverage | Granularity | Gaps | Forever status | Cost / terms |
 |---|---|---|---|---|---|
-| **Own scans** (addon, `ReplicateItems`) | Whole AH per scan | Per auction, max 1 scan / 15 min | Only when we stand at the AH | Works (API available in Forever per wiki) | Free, ours |
+| **Own scans** (addon, `ReplicateItems`) | Whole AH per scan | Per auction, max 1 scan / 15 min | Only when we stand at the AH | **Works** — T3 2026-10-11: 79k rows in 14 s, stackables included | Free, ours |
 | **AHledger API** | Houses where *someone* runs their addon | Per-scan latest; 7d hourly; 30/90d daily | Irregular (see test T1) | **Live**, all 12 Forever markets defined | Free; credit ahledger.com; no resale |
 | **Blizzard Game Data API** | Whole AH, official | Hourly snapshot, per auction | None | **Unknown** — no Forever namespace found yet | Free; OAuth client credentials |
 | Undermine Exchange | Retail only | Hourly | — | Not Forever | Patreon API key |
@@ -15,8 +15,8 @@
 ## Own scans
 
 - `C_AuctionHouse.ReplicateItems()` returns every auction. 15-minute **account-wide** throttle between successful calls.
-- Per auction we get: count, min bid, buyout, current bid, item ID, quality, level. **No auction ID, no time left, no owner** (owner hidden since 9.0.2 except own auctions).
-  - "No time left" may be wrong: the wiki lists `C_AuctionHouse.GetReplicateItemTimeLeft(index)`. T3 counts rows per time-left band to find out.
+- Per auction we get: count, min bid, buyout, current bid, item ID, quality, level, and a time-left band (1–4, confirmed in T3). **No auction ID, no exact time left, no owner** (owner hidden since 9.0.2 except own auctions).
+  - In Forever a row is one seller's quantity at one unit price; `buyout` is the total for the row. Bids are practically unused (T5).
 - Consequence: sell-through must be estimated by diffing `(item, buyout, count)` multisets between scans — approximate. Blizzard API (has auction ID + time left) would make this exact.
 - Details and pitfalls: [03-addon](03-addon.md).
 

@@ -2,7 +2,7 @@
 
 Auction house data, statistics and a gold-making planner for **World of Warcraft: Forever** (EU launch 2026-11-05 00:00 CET).
 
-> Status: **pre-launch**. Test addon v0.1 (scanner + ledger) and a SavedVariables parser exist; neither has run in game yet — beta tests T3–T6 are pending ([07](docs/07-test-plan.md)).
+> Status: **pre-launch**. The addon scans the beta AH (T3–T5 passed 2026-10-11: 79k auctions in 14 s, stackables included). Ledger fixes from that run need a second beta run (T6) — see [07](docs/07-test-plan.md).
 
 ## What it does
 

@@ -22,7 +22,7 @@ Lessons from Classic 2019, Season of Mastery, Season of Discovery, Hardcore and 
 - Gold is scarce; every leveler is buying. Sell raw low-tier cloth/ore/herbs, bags, bandage cloth, potions, stat food, leveling greens (Str/Agi). [Wowhead AH guide]
 - Low-tier mats (Peacebloom, Copper, Linen) start high and deflate fast as gathering catches up. [U] Typical: peak days 1–5, steep fall over 2–4 weeks.
 - Forever twist: starter-zone nodes deplete after 1–2 taps and mobs skin once → early mat scarcity may last longer than in 2019.
-- Deposits are a big share of value early — prefer short durations (12h in Forever) to limit losses on expiry.
+- Deposits are a big share of value early — prefer short durations (2 h / 8 h / 24 h in Forever, seen in beta 2026-10-11) to limit losses on expiry.
 - Don't buy anything speculative. Gold now is worth more than gold later.
 - **Signals:** `deflation_rate` per item (log-price slope over 48h); `sell_now` = deflation_rate < 0 and price ≥ 1.3× 7-day median → sell stock now rather than hold [thresholds tuned on data].
 
@@ -44,7 +44,7 @@ Lessons from Classic 2019, Season of Mastery, Season of Discovery, Hardcore and 
 ## 4. Weekly cycle (once raids exist)
 
 - Raid consumables peak just before/at raid nights; buy Thu–Mon, sell Tue–Wed (EU reset is Wednesday). Major Mana spikes on raid nights. [Icy Veins; Blizzard forums]
-- Post short listings (12h, shortest in Forever [R]) on raid-day afternoons.
+- Post short listings (2 h or 8 h — Forever offers 2/8/24 h, beta 2026-10-11) on raid-day afternoons.
 - [U] Leveling mats: weekend and evening demand peaks.
 - **Signals:** `weekday_index` and `hour_index` per item (ratio to weekly mean, from L2); buy when index < 0.9, sell when > 1.1.
 

@@ -36,6 +36,7 @@ tests/             Offline tests (addon runs under a stubbed WoW API)
 ## Addon notes
 
 - Beta install path: `World of Warcraft\_classic_beta_\Interface\AddOns\ForeverAH\`
-- `## Interface:` in the `.toc` comes from `/dump select(4, GetBuildInfo())` in game.
+- `## Interface:` in the `.toc` comes from `/dump select(4, GetBuildInfo())` in game. Beta build 1.60.1.70338 = 16001.
+- Forever's AH is retail-style: quantity + unit price, stackables are commodities, durations 2/8/24 h. Beta findings are in `docs/07-test-plan.md` — read them before trusting the wiki.
 - SavedVariables are written on logout or `/reload` only: `WTF\Account\<ACCOUNT>\SavedVariables\ForeverAH.lua`.
 - Nothing here can be tested in game by Claude — say so, and give the user the exact in-game steps.

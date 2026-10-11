@@ -34,7 +34,8 @@ Steady state < 2 GB on disk. Nothing under `data/` goes into git.
 
 - Written only on logout/`/reload`. Large files slow login.
 - Addon keeps: L1 aggregates for the **last 40 scans** + raw rows for the **last 3 scans** only (D9). Python dedups by `scan_id`, so the addon never needs to know what was ingested — but ingest before 40 scans roll over.
-- Rows as compact strings (`itemID,count,buyout,minBid,bid;`), not nested Lua tables — far smaller and faster to write.
+- Rows as compact strings (`itemID,count,buyout,minBid,bid,timeLeft;` — `timeLeft` band added 2026-10-11, D15), not nested Lua tables — far smaller and faster to write.
+- Measured in T4: 79k auctions → 1.3 MB of raw rows, 0.1 MB of aggregates. The ~4 MB/scan estimate above is high for beta-sized houses.
 - Cap: if file > ~20 MB, drop oldest raw scans first.
 
 ## Schema (L1, Parquet, partitioned by `date`)
