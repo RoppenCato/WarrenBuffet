@@ -37,6 +37,7 @@ Steady state < 2 GB on disk. Nothing under `data/` goes into git.
 - Rows as compact strings (`itemID,count,buyout,minBid,bid,timeLeft;` — `timeLeft` band added 2026-10-11, D15), not nested Lua tables — far smaller and faster to write.
 - Measured in T4: 79k auctions → 1.3 MB of raw rows, 0.1 MB of aggregates. The ~4 MB/scan estimate above is high for beta-sized houses.
 - Cap: if file > ~20 MB, drop oldest raw scans first.
+- Inventory (`inv`, added 2026-10-11): latest bags, bank and own auctions per character as short strings — a few KB, overwritten in place.
 
 ## Schema (L1, Parquet, partitioned by `date`)
 

@@ -2,7 +2,7 @@
 
 Auction house data, statistics and a gold-making planner for **World of Warcraft: Forever** (EU launch 2026-11-05 00:00 CET).
 
-> Status: **pre-launch**. The addon scans the beta AH (T3–T5 passed 2026-10-11: 79k auctions in 14 s, stackables included). Ledger fixes from that run need a second beta run (T6) — see [07](docs/07-test-plan.md).
+> Status: **pre-launch**. The addon scans the beta AH (T3–T5 and T7 passed 2026-10-11). A first dashboard exists: a Today page with buy/sell suggestions and a Market page with the detail. Open in the beta: the rest of T6 and the new inventory snapshot (T9) — see [07](docs/07-test-plan.md).
 
 ## What it does
 
@@ -32,6 +32,7 @@ data/                   Local data — gitignored, never committed
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 .venv\Scripts\python tests\test_addon.py
+.venv\Scripts\python tests\test_addon_inventory.py
 .venv\Scripts\python tests\test_pipeline.py
 .venv\Scripts\python -m pipeline.ahledger pull forever.normal.horde.us
 .venv\Scripts\python -m dashboard.build --sv "<...>\SavedVariables\ForeverAH.lua" --pull

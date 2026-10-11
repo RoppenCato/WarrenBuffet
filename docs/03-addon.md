@@ -56,6 +56,21 @@ Optional: if Auctionator is installed, read its prices through its public API fo
 - Crafting: `TRADE_SKILL` events → reagents consumed vs output (for real crafting margins). v2.
 - This is the only source of real P&L. Small data, keep forever.
 
+### Inventory
+
+Added 2026-10-11 (D21). The planner can't say what to sell or repost without knowing what the character holds and has listed.
+
+- Read-only snapshots, **latest state only** (the ledger has the history), per character in `ForeverAHDB.inv[char]`:
+  - `bags` — carried bags, `itemID:count,…`. Soulbound items are left out.
+  - `bank` — character bank, saved while the bank is open. `abank` — account bank, if the client has one.
+  - `auctions` — own auctions, `auctionID:itemID:qty:buyout:bid:status:secondsLeft;…` (status 0 active, 1 sold).
+  - `<key>Ts` — server time of each snapshot. `err` — first snapshot error of the session.
+- Bags: `C_Container.GetContainerNumSlots` / `GetContainerItemInfo` (`itemID`, `stackCount`, `isBound`), one second after `BAG_UPDATE_DELAYED`.
+- Bag indexes are chosen by `Enum.BagIndex` **name** (`Backpack`, `Bag_n`, `ReagentBag`; bank: `Bank`, `BankBag_n`, `CharacterBankTab_n`; account: `AccountBankTab_n`), because the numbers differ between clients — 5 is a reagent bag in Mainline and a bank bag in Classic.
+- A snapshot that reads zero slots (bank closed, logging out) is skipped, so a good one is never replaced by an empty one.
+- Own auctions: two seconds after the AH opens the addon sends `C_AuctionHouse.QueryOwnedAuctions({})` — the same read-only query the Auctions tab sends — and saves the list on `OWNED_AUCTIONS_UPDATED`.
+- Unverified in Forever until T9 runs: which bank layout the client has, whether `buyoutAmount` is a unit price or a total for stacks, and whether the query disturbs the full scan.
+
 ### PlanView
 
 - Python writes `addon/ForeverAH/ForeverAH_Plan.lua` (listed in the `.toc`) with today's buy/sell/craft list and price targets.

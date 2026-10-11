@@ -22,12 +22,12 @@
 
 | Component | Language | Job |
 |---|---|---|
-| `addon/ForeverAH` | Lua (Mainline API) | Full AH scan, own-transaction ledger, show today's plan in game |
+| `addon/ForeverAH` | Lua (Mainline API) | Full AH scan, own-transaction ledger, inventory and own-auctions snapshot, show today's plan in game |
 | `pipeline/ingest_*` | Python | Parse SavedVariables; pull AHledger hourly; pull Blizzard API if available |
 | `pipeline/storage` | Python + Parquet/DuckDB | Tiered storage, dedup by `(source, house, snapshot_ts, item_id)` |
 | `pipeline/analytics` | Python (polars/pandas) | Price stats, liquidity, time-to-sell, seasonality, event effects |
-| `pipeline/planner` | Python | Combine signals + `plan/calendar.yaml` + rules → daily/weekly plan |
-| `dashboard/` | Jinja2 + Plotly → static HTML | Charts, deal lists, P&L, planner. Open locally or host privately |
+| `pipeline/planner` | Python | Combine signals + `plan/calendar.yaml` + rules → daily/weekly plan. v0 (2026-10-11): sell / hold / repost / buy suggestions, each with its reason |
+| `dashboard/` | Jinja2 + Plotly → static HTML | Two pages (D22): **Today** — the planner's suggestions and why; **Market** — all tables and charts. Open locally or host privately |
 | `plan/` | YAML | Built-in plan: milestones, watchlist, rule thresholds |
 
 ## Key design choices

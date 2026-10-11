@@ -13,6 +13,7 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T6 | Ledger captures post/sold/bought/expired | Beta | ⚠️ 2026-10-11 — post, cancel, bought, cancelled correct in run 2; sold/expired not seen yet; money rows (v0.3) untested in game |
 | T7 | Own scan vs AHledger agree on same hour | Beta/launch | ✅ 2026-10-11 — medians within 2 %, mins within 1 copper, 6 min apart |
 | T8 | Scheduled hourly pull runs unattended for 48h | PC | ⏳ |
+| T9 | Inventory and own-auctions snapshot | Beta | ⏳ before Oct 22 — addon v0.4 ready 2026-10-11 |
 
 ## T1 — AHledger API ✅
 
@@ -47,6 +48,8 @@ Run 2026-10-11 on `forever.normal.horde.us`, Linen Cloth 2589 and Copper Ore 277
 ## Beta run sheet (T3–T6)
 
 First beta run: 2026-10-11, build 1.60.1.70338 (Interface 16001), realm "Classic Beta PvE", Horde, Undercity. Results are under each test. The fixes made after that run (addon v0.2) have only run offline.
+
+Combined run for the open items (2026-10-11, v0.4): `/reload` → `/fah` → open the bank → open the mailbox and take everything → open the AH, wait for the scan, post one stack of two or more units → `/reload`. That covers T6 (sold/expired mail, money rows) and T9.
 
 Setup, once:
 1. Copy `addon\ForeverAH` to `World of Warcraft\_classic_beta_\Interface\AddOns\ForeverAH\`.
@@ -156,6 +159,19 @@ Result 2026-10-11, run 2 — **pass** (own scan 14:41 UTC, AHledger 14:35 UTC). 
 Across the whole house: 2,983 items appear in both scans, and 98 % of them have medians within 10 % of each other (97 % among the 473 items selling 50+ a day).
 
 Medians are within 2 %. Linen's min differs by 1 copper, which is 5.6 % at this price — the 5 % rule needs an absolute floor for cheap items. Linen quantity differs by 18 %; AHledger's hourly point an hour earlier (15,140 units) matches ours, so this looks like timing or their filtering, not a scan gap.
+
+## T9 — Inventory and own auctions
+
+Added 2026-10-11 with `Inventory.lua` (addon v0.4). Only run offline so far.
+
+Run:
+1. `/reload`, then `/fah` — the last lines say how many items are saved for bags, bank and own auctions.
+2. Open the bank once and close it.
+3. Open the AH and let the scan finish. Post one stack of **two or more** units and leave it up (this shows whether the saved price is per unit or for the stack).
+4. `/reload`.
+
+Check in the file: bags and bank counts match what is in game; soulbound items are absent; the posted stack is in `auctions` with the right quantity; no `err`; the scan still saved its rows (the own-auctions query must not disturb it).
+- Pass: all of the above. Then build the dashboard — the Today page lists what is held and what is listed.
 
 ## T8 — Unattended pull
 
