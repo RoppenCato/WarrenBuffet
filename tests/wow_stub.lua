@@ -143,6 +143,11 @@ function GetCurrentRegion() return 1 end
 function GetRealZoneText() return "Orgrimmar" end
 function GetBuildInfo() return "12.1.5", "99999", "Oct 1 2026", 120105 end
 function GetMoney() return MONEY end
+-- Added 2026-10-11 (beta run 2): balance changes arrive as PLAYER_MONEY.
+function SetMoney(copper)
+  MONEY = copper
+  Fire("PLAYER_MONEY")
+end
 SlashCmdList = {}
 
 function LoadAddonFile(name, src)

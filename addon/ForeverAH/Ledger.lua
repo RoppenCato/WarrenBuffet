@@ -7,9 +7,15 @@
 -- Changed 2026-10-11 (beta T6): cancel and buy_commodity now come from the player's own click,
 -- cancel_evt is the raw AUCTION_CANCELED event. Durations in Forever are 2/8/24 h, not 12/24/48.
 -- --   AH events: post, cancel, bid, buy_commodity, buy_done, buy_item
---   AH events: post, cancel, cancel_evt, bid, buy_commodity, buy_done, buy_item
+-- Changed 2026-10-11 (beta run 2): cancel_evt dropped (noise), money rows added. dep on a post
+-- row is only the API's estimate - it said 0-8c where 1s was charged. The money row that
+-- follows a post is what was really paid.
+-- --   AH events: post, cancel, cancel_evt, bid, buy_commodity, buy_done, buy_item
+--   AH events: post, cancel, bid, buy_commodity, buy_done, buy_item
 --   mail:      sold, sold_pending, bought, expired, cancelled, outbid
---   other:     gold (login/logout)
+-- --   other:     gold (login/logout)
+--   other:     gold (balance at login/logout), money (every balance change while the AH or
+--              mailbox is open: copper = new balance, delta, at = ah|mail)
 -- -- Money is copper. dur: 1 = 12 h, 2 = 24 h, 3 = 48 h.
 -- Money is copper. dur: 1 = 2 h, 2 = 8 h, 3 = 24 h (beta build 70338).
 
@@ -20,6 +26,7 @@ local _, ns = ...
 local C_AuctionHouse = C_AuctionHouse or {}
 
 local MAIL_TOL = 2   -- s; a mail is the same mail if its expiry time matches within this
+local lastMoney      -- last balance seen (added 2026-10-11, see the money rows at the end)
 
 local function KV(...)
   local t = {}
@@ -95,9 +102,12 @@ if C_AuctionHouse.CancelAuction then
     Log("cancel", KV("auction", auctionID, "cost", Try(C_AuctionHouse.GetCancelCost, auctionID)))
   end)
 end
-ns.On("AUCTION_CANCELED", function(arg)
-  Log("cancel_evt", KV("arg", arg))
-end)
+-- Changed 2026-10-11 (beta run 2): AUCTION_CANCELED fired 28 times in one second when a scan
+-- reply arrived, with ids that are not ours. It is useless for the ledger and would add dozens
+-- of junk rows per scan, so it is no longer logged.
+-- ns.On("AUCTION_CANCELED", function(arg)
+--   Log("cancel_evt", KV("arg", arg))
+-- end)
 
 ---------------------------------------------------------------------------------------------
 -- Buying: real-time signals. The "bought" mail row is the authoritative record.
@@ -239,8 +249,30 @@ ns.On("PLAYER_LOGIN", function()
     if #list == 0 then seen[key] = nil end
   end
   Log("gold", KV("copper", GetMoney(), "at", "login"))
+  lastMoney = GetMoney()
 end)
 
+-- Changed 2026-10-11 (beta run 2): GetMoney() returned 0 when the game was quit (it is fine on
+-- /reload), so log the last balance seen instead.
+-- ns.On("PLAYER_LOGOUT", function()
+--   Log("gold", KV("copper", GetMoney(), "at", "logout"))
+-- end)
 ns.On("PLAYER_LOGOUT", function()
-  Log("gold", KV("copper", GetMoney(), "at", "logout"))
+  Log("gold", KV("copper", lastMoney or GetMoney(), "at", "logout"))
+end)
+
+-- Added 2026-10-11 (beta run 2): real cash flow. Every balance change while the AH or the
+-- mailbox is open becomes a money row - deposits, purchases, cancel fees, mail collected.
+-- This is the ground truth the post row's dep estimate is not.
+local place   -- "ah", "mail" or nil
+ns.On("AUCTION_HOUSE_SHOW", function() place = "ah" end)
+ns.On("AUCTION_HOUSE_CLOSED", function() if place == "ah" then place = nil end end)
+ns.On("MAIL_SHOW", function() place = "mail" end)
+ns.On("MAIL_CLOSED", function() if place == "mail" then place = nil end end)
+ns.On("PLAYER_MONEY", function()
+  local money = GetMoney()
+  if place and lastMoney and money ~= lastMoney then
+    Log("money", KV("copper", money, "delta", money - lastMoney, "at", place))
+  end
+  lastMoney = money
 end)

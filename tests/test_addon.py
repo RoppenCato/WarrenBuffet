@@ -213,11 +213,15 @@ def test_abort_on_close_and_timeout():
 def test_missing_events_do_not_break_the_addon():
     # Changed 2026-10-11: the ledger no longer listens to COMMODITY_PURCHASED, so use another event.
     # game = Game(unknown_events=["ITEM_PURCHASED", "COMMODITY_PURCHASED"])
-    game = Game(unknown_events=["ITEM_PURCHASED", "AUCTION_CANCELED"])
+    # Changed 2026-10-11 (beta run 2): AUCTION_CANCELED is gone too. Compare as a set so the test
+    # stops depending on which events the ledger happens to register, and in what order.
+    # game = Game(unknown_events=["ITEM_PURCHASED", "AUCTION_CANCELED"])
+    game = Game(unknown_events=["ITEM_PURCHASED", "AUCTION_HOUSE_PURCHASE_COMPLETED"])
     game.slash("")
     assert any("events missing in this client: " in p and "ITEM_PURCHASED" in p for p in game.printed())
     # assert game.db()["missing"] == "COMMODITY_PURCHASED,ITEM_PURCHASED"
-    assert game.db()["missing"] == "AUCTION_CANCELED,ITEM_PURCHASED"
+    # assert game.db()["missing"] == "AUCTION_CANCELED,ITEM_PURCHASED"
+    assert set(game.db()["missing"].split(",")) == {"ITEM_PURCHASED", "AUCTION_HOUSE_PURCHASE_COMPLETED"}
     game.set_auctions(make_auctions(100, 5))
     game.open_ah()
     assert len(game.db()["scans"]) == 1
@@ -252,7 +256,10 @@ def test_ledger_posts_and_purchases():
     game.fire("PLAYER_LOGOUT")
 
     rows = game.ledger()
-    assert [r["event"] for r in rows] == ["gold", "post", "post", "cancel", "cancel_evt", "bid", "buy_done",
+    # Changed 2026-10-11 (beta run 2): AUCTION_CANCELED is no longer logged (cancel_evt was noise).
+    # assert [r["event"] for r in rows] == ["gold", "post", "post", "cancel", "cancel_evt", "bid", "buy_done",
+    #                                       "buy_commodity", "buy_done", "gold"]
+    assert [r["event"] for r in rows] == ["gold", "post", "post", "cancel", "bid", "buy_done",
                                           "buy_commodity", "buy_done", "gold"]
     assert all(r["char"] == "Tester-BetaRealm" for r in rows)
     post = rows[1]
@@ -263,10 +270,33 @@ def test_ledger_posts_and_purchases():
     # assert (rows[4]["auction"], rows[4]["total"]) == (333, 9000)
     # assert (rows[6]["item"], rows[6]["qty"], rows[6]["unit"], rows[6]["total"]) == (2770, 20, 30, 600)
     assert (rows[3]["auction"], rows[3]["cost"]) == (111, 3)
-    assert rows[4]["arg"] == 114
-    assert (rows[5]["auction"], rows[5]["total"]) == (333, 9000)
-    assert (rows[7]["item"], rows[7]["qty"], rows[7]["unit"], rows[7]["total"]) == (2770, 20, 30, 600)
+    # assert rows[4]["arg"] == 114
+    # assert (rows[5]["auction"], rows[5]["total"]) == (333, 9000)
+    # assert (rows[7]["item"], rows[7]["qty"], rows[7]["unit"], rows[7]["total"]) == (2770, 20, 30, 600)
+    assert (rows[4]["auction"], rows[4]["total"]) == (333, 9000)
+    assert (rows[6]["item"], rows[6]["qty"], rows[6]["unit"], rows[6]["total"]) == (2770, 20, 30, 600)
     assert rows[0]["copper"] == 123456 and rows[0]["at"] == "login"
+
+
+def test_ledger_money_rows():
+    """Beta run 2: 1s was charged per post where the API estimated 0-8c; quitting logged 0 gold."""
+    game = Game()
+    game.fire("AUCTION_HOUSE_SHOW")
+    game.g.SetMoney(123356)                  # deposit taken
+    game.g.SetMoney(123356)                  # event without a change
+    game.fire("AUCTION_HOUSE_CLOSED")
+    game.g.SetMoney(123400)                  # looting in the world: not ours to log
+    game.fire("MAIL_SHOW")
+    game.g.SetMoney(124350)                  # sale collected
+    game.fire("MAIL_CLOSED")
+    game.g.MONEY = 0                         # the client reports 0 while quitting
+    game.fire("PLAYER_LOGOUT")
+
+    rows = game.ledger()
+    assert [r["event"] for r in rows] == ["gold", "money", "money", "gold"]
+    assert (rows[1]["copper"], rows[1]["delta"], rows[1]["at"]) == (123356, -100, "ah")
+    assert (rows[2]["copper"], rows[2]["delta"], rows[2]["at"]) == (124350, 950, "mail")
+    assert (rows[3]["copper"], rows[3]["at"]) == (124350, "logout")
 
 
 def test_ledger_mail_is_logged_once():
