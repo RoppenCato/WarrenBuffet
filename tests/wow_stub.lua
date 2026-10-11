@@ -80,7 +80,13 @@ function C_AuctionHouse.GetReplicateItemInfo(i)
 end
 
 function C_AuctionHouse.GetReplicateItemTimeLeft(i) return replicated[i + 1][7] end
-function C_AuctionHouse.GetItemCommodityStatus() return 2 end
+-- Changed 2026-10-11 (beta T3): the real function takes an ItemLocation and raises on an item
+-- id. The stub accepted anything, which hid the error the first beta run hit.
+-- function C_AuctionHouse.GetItemCommodityStatus() return 2 end
+function C_AuctionHouse.GetItemCommodityStatus(item)
+  if type(item) ~= "table" then error("bad argument #1 to 'GetItemCommodityStatus'") end
+  return 2
+end
 function C_AuctionHouse.PostItem() return false end
 function C_AuctionHouse.PostCommodity() return false end
 function C_AuctionHouse.PlaceBid() end

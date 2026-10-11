@@ -148,11 +148,27 @@ def test_throttle_and_retention():
     assert game.g.REPLICATE_CALLS == 1
     assert "next scan in 10 min" in game.printed()[-1]
 
-    game.slash("scan")                       # forced: server answers with an empty market
+    # Changed 2026-10-11 (beta T3): build 70338 stays silent when throttled - no event at all.
+    # The empty-reply path is kept and still covered below.
+    # game.slash("scan")                       # forced: server answers with an empty market
+    # game.fire("REPLICATE_ITEM_LIST_UPDATE")
+    # game.frames(5)
+    # db = game.db()
+    # assert game.g.REPLICATE_CALLS == 2
+    # assert len(db["scans"]) == 1 and db["throttled"] == 1
+    # assert "scan not saved: 0 rows" in game.printed()[-1]
+    game.slash("scan")                       # forced inside the server's 15 min: no reply
+    assert "server will probably ignore" in game.printed()[-2]
+    game.g.Advance(121)
+    game.frames(2)
+    assert game.g.REPLICATE_CALLS == 2
+    assert "no reply in 120 s - throttled" in game.printed()[-1]
+    assert len(game.db()["scans"]) == 1
+
+    game.slash("scan")                       # an empty reply is not saved either
     game.fire("REPLICATE_ITEM_LIST_UPDATE")
     game.frames(5)
     db = game.db()
-    assert game.g.REPLICATE_CALLS == 2
     assert len(db["scans"]) == 1 and db["throttled"] == 1
     assert "scan not saved: 0 rows" in game.printed()[-1]
 

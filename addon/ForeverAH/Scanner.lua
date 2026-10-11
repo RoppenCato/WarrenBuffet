@@ -42,15 +42,21 @@ function ns.PrintItem(itemID, rec)
   rec = rec or ns.db.scans[#ns.db.scans]
   if not rec then return ns.Print("no scan stored") end
   local name = C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID) or "item"
-  -- Enum.ItemCommodityStatus: 0 unknown, 1 item, 2 commodity (T5: which AH type is this?)
-  local status = C_AuctionHouse.GetItemCommodityStatus and C_AuctionHouse.GetItemCommodityStatus(itemID)
+  -- Changed 2026-10-11 (beta T3): GetItemCommodityStatus takes an ItemLocation, not an item id,
+  -- and raised an error here after every scan. Removed; the ledger's post rows (kind=commodity)
+  -- answer the AH-type question instead.
+  -- -- Enum.ItemCommodityStatus: 0 unknown, 1 item, 2 commodity (T5: which AH type is this?)
+  -- local status = C_AuctionHouse.GetItemCommodityStatus and C_AuctionHouse.GetItemCommodityStatus(itemID)
   local min, p10, p25, med, qty, auctions = FindAgg(rec, itemID)
   if not min then
-    return ns.Print("%s %d: NOT in scan (commodity status %s)", name, itemID, tostring(status))
+    -- return ns.Print("%s %d: NOT in scan (commodity status %s)", name, itemID, tostring(status))
+    return ns.Print("%s %d: NOT in scan", name, itemID)
   end
   -- %s for prices: %d overflows above 2^31 copper on Windows clients
-  ns.Print("%s %d: %d auctions, %d units, min %s, p10 %s, p25 %s, median %s copper (commodity status %s)",
-    name, itemID, auctions, qty, min, p10, p25, med, tostring(status))
+  -- ns.Print("%s %d: %d auctions, %d units, min %s, p10 %s, p25 %s, median %s copper (commodity status %s)",
+  --   name, itemID, auctions, qty, min, p10, p25, med, tostring(status))
+  ns.Print("%s %d: %d auctions, %d units, min %s, p10 %s, p25 %s, median %s copper",
+    name, itemID, auctions, qty, min, p10, p25, med)
 end
 
 local function Finish(s)
@@ -207,9 +213,20 @@ function ns.Scan(force)
     },
   }
   state, scan = "waiting", s
+  -- Changed 2026-10-11 (beta T3): a throttled request gets no reply at all in Forever (no event,
+  -- not an empty list), so the timeout is the throttle signal. Say so, and warn up front.
+  -- C_Timer.After(TIMEOUT, function()
+  --   if scan == s and state == "waiting" then Abort("no reply in " .. TIMEOUT .. " s - throttled?") end
+  -- end)
   C_Timer.After(TIMEOUT, function()
-    if scan == s and state == "waiting" then Abort("no reply in " .. TIMEOUT .. " s - throttled?") end
+    if scan == s and state == "waiting" then
+      Abort("no reply in " .. TIMEOUT .. " s - throttled (the server stays silent inside its 15 min)")
+    end
   end)
+  if wait > 0 then
+    ns.Print("last scan was %d min ago - the server will probably ignore this request",
+      math.floor((now - ns.db.lastScan) / 60))
+  end
   ns.Print("requesting full scan - keep the AH open")
   C_AuctionHouse.ReplicateItems()
 end
@@ -231,7 +248,9 @@ ns.On("REPLICATE_ITEM_LIST_UPDATE", function()
   local s = scan
   local n = C_AuctionHouse.GetNumReplicateItems()
   if n == 0 then
-    -- A throttled call returns an empty market, not an error.
+    -- Changed 2026-10-11 (beta T3): not what build 70338 does - a throttled call got no event at
+    -- all (see the timeout in ns.Scan). Kept in case an empty reply shows up in another build.
+    -- -- A throttled call returns an empty market, not an error.
     ns.db.throttled = (ns.db.throttled or 0) + 1
     return Abort("0 rows - throttled (15 min, account-wide) or empty house")
   end
