@@ -38,6 +38,9 @@ local function KV(...)
 end
 
 local function Log(event, fields, name)
+  -- Added 2026-10-11: a balance without a character is noise (a "?" row with 0 copper turned up
+  -- on the beta), so gold rows wait until the character is known.
+  if event == "gold" and not ns.char then return end
   local row = GetServerTime() .. "," .. (ns.char or "?") .. "," .. event
   if fields and fields ~= "" then row = row .. "," .. fields end
   if name then row = row .. ",name=" .. name end
@@ -251,7 +254,8 @@ ns.On("PLAYER_LOGIN", function()
     if #list == 0 then seen[key] = nil end
   end
   Log("gold", KV("copper", GetMoney(), "at", "login"))
-  lastMoney = GetMoney()
+  -- lastMoney = GetMoney()   (2026-10-11: only once the character is known, see Log)
+  if ns.char then lastMoney = GetMoney() end
 end)
 
 -- Changed 2026-10-11 (beta run 2): GetMoney() returned 0 when the game was quit (it is fine on
@@ -259,8 +263,12 @@ end)
 -- ns.On("PLAYER_LOGOUT", function()
 --   Log("gold", KV("copper", GetMoney(), "at", "logout"))
 -- end)
+-- Changed 2026-10-11: only log a balance we actually saw. Without one, GetMoney() is 0 here.
+-- ns.On("PLAYER_LOGOUT", function()
+--   Log("gold", KV("copper", lastMoney or GetMoney(), "at", "logout"))
+-- end)
 ns.On("PLAYER_LOGOUT", function()
-  Log("gold", KV("copper", lastMoney or GetMoney(), "at", "logout"))
+  if lastMoney then Log("gold", KV("copper", lastMoney, "at", "logout")) end
 end)
 
 -- Added 2026-10-11 (beta run 2): real cash flow. Every balance change while the AH or the

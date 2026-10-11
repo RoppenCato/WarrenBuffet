@@ -255,7 +255,12 @@ function C_AuctionHouse.GetNumOwnedAuctions() return #OWNED end
 function C_AuctionHouse.GetOwnedAuctionInfo(i) return OWNED[i] end
 date = os.date
 
-function UnitName() return "Tester" end
+-- Changed 2026-10-11: the name can be missing early in a login (PLAYER_NAME = nil in a test).
+-- function UnitName() return "Tester" end
+PLAYER_NAME = "Tester"
+function UnitName() return PLAYER_NAME end
+ERRORS = {}
+function geterrorhandler() return function(text) ERRORS[#ERRORS + 1] = text end end
 function GetRealmName() return "Beta Realm" end
 function GetNormalizedRealmName() return "BetaRealm" end
 function UnitFactionGroup() return "Horde" end

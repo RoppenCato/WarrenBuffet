@@ -25,11 +25,13 @@ ADDON = ROOT / "addon" / "ForeverAH"
 class Game:
     # Changed 2026-10-11: broken_widget added, to test the chat fallback of UI.lua.
     # def __init__(self, unknown_events=()):
-    def __init__(self, unknown_events=(), broken_widget=None):
+    # def __init__(self, unknown_events=(), broken_widget=None):   (2026-10-11: player_name added)
+    def __init__(self, unknown_events=(), broken_widget=None, player_name="Tester"):
         self.lua = LuaRuntime(register_eval=False, register_builtins=False)
         self.lua.execute((ROOT / "tests" / "wow_stub.lua").read_text(encoding="utf-8"))
         self.g = self.lua.globals()
         self.g.BROKEN_WIDGET = broken_widget
+        self.g.PLAYER_NAME = player_name
         for event in unknown_events:
             self.g.UNKNOWN_EVENTS[event] = True
         toc = (ADDON / "ForeverAH.toc").read_text(encoding="utf-8").splitlines()
@@ -300,6 +302,29 @@ def test_ledger_money_rows():
     assert (rows[1]["copper"], rows[1]["delta"], rows[1]["at"]) == (123356, -100, "ah")
     assert (rows[2]["copper"], rows[2]["delta"], rows[2]["at"]) == (124350, 950, "mail")
     assert (rows[3]["copper"], rows[3]["at"]) == (124350, "logout")
+
+
+def test_login_without_a_name_and_failing_handlers():
+    """Beta 2026-10-11: a new character's first login left a '?' row and skipped later handlers."""
+    game = Game(player_name=None)            # the name is not there yet at PLAYER_LOGIN
+    assert list(game.g.ERRORS.values()) == []
+    game.fire("PLAYER_LOGOUT")               # a session that ends before the name ever arrives
+    assert game.ledger() == []               # no '?' row, no made-up 0 copper
+
+    game = Game(player_name=None)
+    game.g.PLAYER_NAME = "Shym"
+    game.fire("PLAYER_ENTERING_WORLD")       # the name arrives with the world
+    game.g.SetMoney(500)
+    game.fire("PLAYER_LOGOUT")
+    rows = game.ledger()
+    assert [(r["char"], r["event"], r["copper"]) for r in rows] == [("Shym-BetaRealm", "gold", 500)]
+
+    game = Game()                            # one handler raising must not stop the rest
+    game.lua.execute("GetBuildInfo = function() error('boom') end")
+    game.fire("PLAYER_LOGIN")
+    assert [r["at"] for r in game.ledger()] == ["login", "login"]          # the ledger's handler still ran
+    assert "PLAYER_LOGIN" in game.db()["errors"][0] and "boom" in game.db()["errors"][0]
+    assert len(game.g.ERRORS) == 1           # and the game's error display was told
 
 
 def test_ledger_mail_is_logged_once():

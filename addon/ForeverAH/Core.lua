@@ -36,9 +36,30 @@ function ns.On(event, fn)
   list[#list + 1] = fn
 end
 
+-- Added 2026-10-11: errors are kept in the SavedVariables file (ForeverAHDB.errors, last 20) so
+-- they can be read from the file afterwards. They still reach the game's own error display.
+local earlyErrors = {}
+function ns.Error(where, err)
+  local text = GetServerTime() .. " " .. where .. ": " .. tostring(err)
+  local list = ns.db and ns.db.errors or earlyErrors
+  list[#list + 1] = text
+  while #list > 20 do table.remove(list, 1) end
+  if geterrorhandler then geterrorhandler()(text) end
+end
+
+-- Changed 2026-10-11: one failing handler no longer stops the others. On the beta a new
+-- character's first login failed in Core's PLAYER_LOGIN, which silently skipped the ledger's
+-- login handler and left a row with character "?".
+-- frame:SetScript("OnEvent", function(_, event, ...)
+--   local list = handlers[event]
+--   for i = 1, #list do list[i](...) end
+-- end)
 frame:SetScript("OnEvent", function(_, event, ...)
   local list = handlers[event]
-  for i = 1, #list do list[i](...) end
+  for i = 1, #list do
+    local ok, err = pcall(list[i], ...)
+    if not ok then ns.Error(event, err) end
+  end
 end)
 
 ns.On("ADDON_LOADED", function(name)
@@ -51,13 +72,28 @@ ns.On("ADDON_LOADED", function(name)
   db.mailSeen = db.mailSeen or {}  -- mail dedup, see Ledger.lua
   db.inv = db.inv or {}            -- added 2026-10-11: holdings per character, see Inventory.lua
   db.ui = db.ui or {}              -- added 2026-10-11: window and button state, see UI.lua
+  db.errors = db.errors or {}      -- added 2026-10-11: see ns.Error
+  for _, text in ipairs(earlyErrors) do db.errors[#db.errors + 1] = text end
   ns.db = db
+end)
+
+function ns.ResolveChar()
+  local name, realm = UnitName("player"), GetNormalizedRealmName() or GetRealmName()
+  if name and name ~= "" and realm and realm ~= "" then ns.char = name .. "-" .. realm end
+  return ns.char
+end
+
+ns.On("PLAYER_ENTERING_WORLD", function()
+  if not ns.char then ns.ResolveChar() end
 end)
 
 ns.On("PLAYER_LOGIN", function()
   local version, build, _, interface = GetBuildInfo()
   ns.db.build = version .. " " .. build .. " " .. interface
-  ns.char = UnitName("player") .. "-" .. (GetNormalizedRealmName() or GetRealmName())
+  -- Changed 2026-10-11: the name can be missing this early (seen on a new character's first
+  -- login), so resolve it without raising and try again when the world loads.
+  -- ns.char = UnitName("player") .. "-" .. (GetNormalizedRealmName() or GetRealmName())
+  ns.ResolveChar()
   -- Added 2026-10-11: save the events this client rejected, so the T6 answer is in the
   -- SavedVariables file and doesn't have to be copied from chat.
   ns.db.missing = table.concat(ns.missingEvents, ",")
