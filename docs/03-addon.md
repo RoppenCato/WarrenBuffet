@@ -104,7 +104,13 @@ Added 2026-10-11 (D27). One character trades (a bank alt); others also open the 
 
 - Python writes `addon/ForeverAH/ForeverAH_Plan.lua` (listed in the `.toc`) with today's buy/sell/craft list and price targets.
 - `/fah` opens a simple frame; tooltip line "target buy ≤ X / sell ≥ Y" for watchlist items.
-- Not built yet. In v0.1 `/fah` prints status, `/fah scan` scans now, `/fah item <id>` prints an item from the latest scan.
+- Built 2026-10-11 (addon v0.8, D36), not yet seen in game:
+  - `pipeline/planfile.py` writes `ForeverAH_Plan.lua` straight into the **installed** addon folder on every dashboard build (and on Refresh). The repo holds only a placeholder; re-installing the addon overwrites the plan until the next build.
+  - The window has two tabs. **Plan**: Sell, Your auctions, Buy — action, item, quantity, price, and the reason on a second line. **Log**: scan and ledger messages as before, with an unread count on the tab.
+  - Item tooltips get up to three lines: cheapest AH price in the scan the plan was built on, what a vendor pays, and the plan's word for that item (Sell, Hold, Vendor it, …). Hooked through `TooltipDataProcessor`, with `OnTooltipSetItem` as the fallback.
+  - The game reads the file only at login and on `/reload`, so the in-game plan is the one written before the last reload: scan → `/reload` → Refresh the dashboard → `/reload`. The plan says so when a newer scan exists. The dashboard is the live view.
+  - The rules live in one place, `pipeline/planner.py`. Nothing is recomputed in Lua.
+- `/fah` prints status, `/fah scan` scans now, `/fah item <id>` prints an item from the latest scan, `/fah trader`, `/fah debug`.
 - Refreshes on `/reload` after the pipeline runs.
 
 ## Rules

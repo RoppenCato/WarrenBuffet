@@ -58,4 +58,5 @@ The Today page shows the prompt "Review the flagged news" when stories are waiti
 - SavedVariables are written on logout or `/reload` only: `WTF\Account\<ACCOUNT>\SavedVariables\ForeverAH.lua`.
 - The test stub's widgets reject method names it does not list (`tests/wow_stub.lua`). When the addon needs a new frame method, add the real name there — never loosen the check.
 - After a beta run, read `errors`, `uiErr` and `inv[...].err` in the SavedVariables file before anything else.
+- Installing the addon (copying `addon\ForeverAH` to the game) overwrites the in-game plan with the placeholder. Run `python -m dashboard.build` afterwards; it writes `ForeverAH_Plan.lua` back.
 - Nothing here can be tested in game by Claude — say so, and give the user the exact in-game steps.
