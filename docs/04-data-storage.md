@@ -33,7 +33,7 @@ Steady state < 2 GB on disk. Nothing under `data/` goes into git.
 ## SavedVariables budget
 
 - Written only on logout/`/reload`. Large files slow login.
-- Addon keeps: all L1 aggregates for scans not yet exported + raw rows for the **last 3 scans** only. Python dedups by `scan_id`, so the addon never needs to know what was ingested.
+- Addon keeps: L1 aggregates for the **last 40 scans** + raw rows for the **last 3 scans** only (D9). Python dedups by `scan_id`, so the addon never needs to know what was ingested — but ingest before 40 scans roll over.
 - Rows as compact strings (`itemID,count,buyout,minBid,bid;`), not nested Lua tables — far smaller and faster to write.
 - Cap: if file > ~20 MB, drop oldest raw scans first.
 

@@ -2,7 +2,7 @@
 
 Auction house data, statistics and a gold-making planner for **World of Warcraft: Forever** (EU launch 2026-11-05 00:00 CET).
 
-> Status: **design / pre-launch**. No code yet — docs, the built-in plan and the test plan come first.
+> Status: **pre-launch**. Test addon v0.1 (scanner + ledger) and a SavedVariables parser exist; neither has run in game yet — beta tests T3–T6 are pending ([07](docs/07-test-plan.md)).
 
 ## What it does
 
@@ -22,7 +22,17 @@ pipeline/               Python: ingest (SavedVariables, AHledger, Blizzard), sto
 dashboard/              HTML templates → generated static site
 plan/                   Built-in plan: calendar.yaml, watchlist.yaml, rules (machine-readable)
 docs/                   Design docs (this folder)
+tests/                  Offline tests: addon Lua under a stubbed WoW API
 data/                   Local data — gitignored, never committed
+```
+
+## Dev setup
+
+```
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python tests\test_addon.py
+.venv\Scripts\python -m pipeline.savedvars "<...>\SavedVariables\ForeverAH.lua"
 ```
 
 ## Docs

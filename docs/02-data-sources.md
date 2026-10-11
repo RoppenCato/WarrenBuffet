@@ -16,6 +16,7 @@
 
 - `C_AuctionHouse.ReplicateItems()` returns every auction. 15-minute **account-wide** throttle between successful calls.
 - Per auction we get: count, min bid, buyout, current bid, item ID, quality, level. **No auction ID, no time left, no owner** (owner hidden since 9.0.2 except own auctions).
+  - "No time left" may be wrong: the wiki lists `C_AuctionHouse.GetReplicateItemTimeLeft(index)`. T3 counts rows per time-left band to find out.
 - Consequence: sell-through must be estimated by diffing `(item, buyout, count)` multisets between scans — approximate. Blizzard API (has auction ID + time left) would make this exact.
 - Details and pitfalls: [03-addon](03-addon.md).
 
