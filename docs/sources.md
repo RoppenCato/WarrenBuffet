@@ -17,6 +17,7 @@
 
 ## Data sources / API
 - AHledger developers: https://ahledger.com/developers
+- Wowhead Forever news feed: https://www.wowhead.com/news/rss/forever
 - AHledger open data: https://ahledger.com/data
 - AHledger terms: https://ahledger.com/terms
 - ReplicateItems: https://warcraft.wiki.gg/wiki/API_C_AuctionHouse.ReplicateItems

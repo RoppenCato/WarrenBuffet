@@ -36,6 +36,8 @@ python -m venv .venv
 .venv\Scripts\python tests\test_pipeline.py
 .venv\Scripts\python -m pipeline.ahledger pull forever.normal.horde.us
 .venv\Scripts\python -m dashboard.build --sv "<...>\SavedVariables\ForeverAH.lua" --pull
+.venv\Scripts\python -m pipeline.news pull
+.venv\Scripts\python -m dashboard.serve          (http://localhost:8765, with a Refresh button)
 .venv\Scripts\python -m pipeline.savedvars "<...>\SavedVariables\ForeverAH.lua"
 ```
 
@@ -56,3 +58,5 @@ python -m venv .venv
 ## Attribution
 
 Prices from the AHledger API must be credited with a link to [ahledger.com](https://ahledger.com) wherever shown (their terms). The dashboard footer does this.
+
+News headlines come from [Wowhead](https://www.wowhead.com/news). Only headline, date and link are shown; the articles stay on their site.

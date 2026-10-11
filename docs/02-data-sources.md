@@ -40,6 +40,16 @@
 - Classic: `/data/wow/connected-realm/{id}/auctions/index` with `namespace=dynamic-classic-{region}`; AH ids 2 Alliance, 6 Horde, 7 Neutral.
 - Forever: nothing published. Forever has no classic realms (one mega-server per ruleset), so whatever comes will look different. Test at launch: [T2](07-test-plan.md#t2).
 
+## News (Wowhead)
+
+Added 2026-10-11 (D24). Nerfs, buffs, vendor and drop changes and dates move prices before the data shows it.
+
+- Feed: `https://www.wowhead.com/news/rss/forever` — the newest 40 stories, about four days at ~10 a day. Pulled with the hourly job and by the Refresh button.
+- We keep headline, date, link and a short summary in `data/news/` (not committed). Articles stay on Wowhead; credit with a link wherever shown.
+- Flagging (`pipeline/news.py`): a story is flagged when it names an item we know or an economy term (prices, supply, crafting, dates, balance), whole words only. Score 2+ waits for a review; weaker matches are only listed.
+- Review is a reading job, done by Claude on request (prompt on the Today page, procedure in `CLAUDE.md`). Results go to `plan/news-log.yaml`; dated or lasting effects go to `plan/calendar.yaml` and the watchlist, which the planner reads.
+- Limit: item matching only knows the watchlist and the item names cached so far. A story about an item outside those is caught only if it also uses an economy term.
+
 ## What no website gives us
 
 - **Our own P&L** — sales, purchases, expired, cancelled, deposits lost, crafting costs. Only the addon ledger can record this. This is what tells us which strategies actually work.
