@@ -34,7 +34,7 @@ tests/             Offline tests (addon runs under a stubbed WoW API)
 - Tests: `.venv\Scripts\python tests\test_addon.py`, `tests\test_addon_inventory.py` and `tests\test_addon_ui.py` (venv: `python -m venv .venv`, then `pip install -r requirements.txt`)
 - T4/T5 report on a real file: `.venv\Scripts\python -m pipeline.savedvars "<...>\SavedVariables\ForeverAH.lua"`
 - Pipeline tests: `.venv\Scripts\python tests\test_pipeline.py` and `tests\test_storage.py`
-- Hourly job: `tools\pull.cmd` (= `python -m pipeline.pull`), log in `data/pull.log`. Store: `python -m pipeline.storage ingest` / `status`; query through `storage.connect()` views (`l1`, `latest`, `hourly`, `daily`, `l0`, `ledger`).
+- Hourly job: Windows task "ForeverAH pull" (registered by `tools\register-pull.ps1`; `tools\pull.cmd` runs the same thing by hand), log in `data/pull.log`. Store: `python -m pipeline.storage ingest` / `status`; query through `storage.connect()` views (`l1`, `latest`, `hourly`, `daily`, `l0`, `ledger`).
 - Tracked houses and realm names: `plan/houses.yaml`. We play Normal on EU; faction undecided, both houses tracked.
 - Dashboard: `.venv\Scripts\python -m dashboard.build --sv "<...>\ForeverAH.lua" --pull` → `dashboard/site/` (ignored): `index.html` = Today (suggestions), `market.html` = detail. Local server with the Refresh button: `.venv\Scripts\python -m dashboard.serve` (also the `dashboard` entry in `.claude/launch.json`). The SavedVariables path comes from `--sv`, `FOREVERAH_SV` or `data/local.json`.
 

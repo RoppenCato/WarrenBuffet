@@ -12,7 +12,7 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T5 | Commodities included in replicate? AH type? | Beta | ✅ 2026-10-11 — included; deposit is at least 1s per post; neutral cut still open |
 | T6 | Ledger captures post/sold/bought/expired | Beta | ⚠️ 2026-10-11 — post, cancel, bought, cancelled correct in run 2; sold/expired not seen yet; money rows (v0.3) untested in game |
 | T7 | Own scan vs AHledger agree on same hour | Beta/launch | ✅ 2026-10-11 — medians within 2 %, mins within 1 copper, 6 min apart |
-| T8 | Scheduled hourly pull runs unattended for 48h | PC | ⏳ — `tools\pull.cmd` ready and run once by hand 2026-10-11; not scheduled yet |
+| T8 | Scheduled hourly pull runs unattended for 48h | PC | ⏳ — scheduled 2026-10-11 18:21, first run ok; check the log on 2026-10-13 evening |
 | T9 | Inventory and own-auctions snapshot | Beta | ⏳ before Oct 22 — addon v0.4 ready 2026-10-11 |
 | T10 | Log window, button, several characters | Beta | ⏳ before Oct 22 — addon v0.5 ready 2026-10-11 |
 
@@ -193,6 +193,9 @@ Found before the run, 2026-10-11: a new character's first session (16:57) wrote 
 
 Task Scheduler hourly → `pipeline pull ahledger`; 48h; check no gaps in our L1, respect for rate limits and cache headers.
 
-As built 2026-10-11: `tools\pull.cmd` runs `python -m pipeline.pull` — the pricetable of every house in `plan/houses.yaml` plus the news, stored in L1, one line per run in `data/pull.log`, exit code 1 if a source failed. Register with `schtasks /Create /SC HOURLY /TN "ForeverAH pull" /TR "C:\dev\WarrenBuffet\tools\pull.cmd" /F`.
+As built 2026-10-11: `python -m pipeline.pull` fetches the pricetable of every house in `plan/houses.yaml` plus the news, stores them in L1, writes one line per run to `data/pull.log`, and exits with 1 if a source failed. `tools\pull.cmd` runs it by hand.
+
+Scheduled 2026-10-11 as the Windows task **"ForeverAH pull"** (`tools\register-pull.ps1`): 7 minutes past every hour while the user is logged on, a missed run happens on wake, 10-minute limit. It runs `pythonw -m pipeline.pull` so no console window appears. Remove with `Unregister-ScheduledTask -TaskName "ForeverAH pull" -Confirm:$false`.
+- The very first scheduled run sat for over a minute with no progress and was stopped. Run by hand the same command took 3 s, and a second scheduled run took 7 s. The task now uses priority 6 (normal disk priority instead of the default low one); a run after that took 3 s. The cause of the first stall is not proven — a cold start under low disk priority is the guess.
 First manual run: both EU houses answer with an empty table (nobody can scan them before launch) and are skipped; the beta house was unchanged.
 After 48 h check: `data/pull.log` has a line per hour, none with FAILED, and `python -m pipeline.storage status` shows the snapshots.
