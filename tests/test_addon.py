@@ -327,6 +327,27 @@ def test_login_without_a_name_and_failing_handlers():
     assert len(game.g.ERRORS) == 1           # and the game's error display was told
 
 
+def test_item_reference_is_built_from_scans():
+    game = Game()
+    game.set_auctions([[2589, 20, 400, 0, 0, True, 3], [2770, 10, 1500, 0, 0, True, 3], [4306, 5, 2000, 0, 0, False, 2]])
+    info = game.lua.table_from
+    game.g.ITEM_INFO = info({2589: info(["Linen Cloth", 13, 200, 7, 5]), 2770: info(["Copper Ore", 5, 200, 7, 7])})
+    game.open_ah()
+    ref = savedvars.items(game.db())
+    assert ref == {2589: {"name": "Linen Cloth", "vendor": 13, "stack": 200, "class_id": 7, "subclass_id": 5},
+                   2770: {"name": "Copper Ore", "vendor": 5, "stack": 200, "class_id": 7, "subclass_id": 7}}
+    assert any("item reference: 2 new items" in p for p in game.printed())
+
+    game.g.ITEM_INFO[4306] = info(["Silk Cloth", 150, 200, 7, 5])   # the client has loaded it by now
+    game.close_ah()
+    game.g.Advance(15 * 60)
+    game.open_ah()
+    ref = savedvars.items(game.db())
+    assert sorted(ref) == [2589, 2770, 4306] and ref[4306]["vendor"] == 150
+    assert game.db()["items"].count("Linen Cloth") == 1               # known items are not written twice
+    assert "errors" not in game.db() or game.db()["errors"] == {}
+
+
 def test_ledger_mail_is_logged_once():
     game = Game()
     now = game.g.GetServerTime()

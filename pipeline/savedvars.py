@@ -107,6 +107,18 @@ def ledger_rows(db: dict) -> list[dict]:
     return out
 
 
+def items(db: dict) -> dict[int, dict]:
+    """Item reference saved by Items.lua: {item_id: {name, vendor, stack, class_id, subclass_id}}.
+    vendor is what a vendor pays for one unit, in copper (0 = not sellable to vendors)."""
+    out = {}
+    for line in (db.get("items") or "").split("\n"):
+        if line:
+            item_id, vendor, stack, class_id, subclass_id, name = line.split("\t", 5)
+            out[int(item_id)] = {"name": name, "vendor": int(vendor), "stack": int(stack),
+                                 "class_id": int(class_id), "subclass_id": int(subclass_id)}
+    return out
+
+
 def _counts(text) -> dict[int, int]:
     return {int(i): int(n) for i, n in (pair.split(":") for pair in (text or "").split(",") if pair)}
 

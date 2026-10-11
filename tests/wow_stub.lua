@@ -185,6 +185,15 @@ C_Item = {
   GetItemNameByID = function(id) return ({ [2589] = "Linen Cloth", [2770] = "Copper Ore" })[id] end,
 }
 
+-- Added 2026-10-11 for Items.lua. An item missing from ITEM_INFO is "not cached yet": nil.
+ITEM_INFO = {}   -- id -> { name, vendorPrice, stack, classID, subclassID }
+function C_Item.GetItemInfo(id)
+  if type(id) ~= "number" then error("bad argument #1 to 'GetItemInfo'") end
+  local it = ITEM_INFO[id]
+  if not it then return nil end
+  return it[1], "|Hitem:" .. id .. "|h", 1, 10, 1, "Trade Goods", "Cloth", it[3], "", 0, it[2], it[4], it[5], 0, 0, nil, true
+end
+
 AUCTION_EXPIRED_MAIL_SUBJECT = "Auction expired: %s"
 AUCTION_REMOVED_MAIL_SUBJECT = "Auction cancelled: %s"
 AUCTION_OUTBID_MAIL_SUBJECT = "Outbid on %s"

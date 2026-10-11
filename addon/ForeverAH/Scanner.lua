@@ -89,6 +89,8 @@ local function Finish(s)
   ns.Print("time-left bands: %s", rec.tl ~= "" and rec.tl or "not available")
   for _, itemID in ipairs(CHECK) do ns.PrintItem(itemID, rec) end
   ns.Print("/reload or log out to write SavedVariables")
+  -- Added 2026-10-11: names and vendor prices of the items just seen (Items.lua).
+  if ns.RecordItems then ns.RecordItems(s.ids) end
 end
 
 local function Aggregate(s)
