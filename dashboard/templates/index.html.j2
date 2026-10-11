@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ForeverAH · {{ title }}</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface-1: #fcfcfb; --border: rgba(11,11,11,0.10);
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --series-1: #2a78d6; --context: #898781;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface-1: #1a1a19; --border: rgba(255,255,255,0.10);
+      --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --series-1: #3987e5; --context: #898781;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --border: rgba(255,255,255,0.10);
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --series-1: #3987e5; --context: #898781;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text-primary);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; padding: 28px 16px 48px; }
+  h1 { font-size: 22px; margin: 0; }
+  h2 { font-size: 17px; margin: 0 0 2px; }
+  .sub, .why, .note, footer { color: var(--text-secondary); }
+  .sub { margin: 4px 0 20px; }
+  .why { margin: 0 0 14px; max-width: 72ch; }
+  .note { font-size: 13px; margin: 10px 0 0; }
+  a { color: inherit; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .tile, .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; }
+  .tile { padding: 14px 16px; }
+  .tile .label { color: var(--text-secondary); font-size: 13px; }
+  .tile .value { font-size: 28px; font-weight: 600; line-height: 1.2; }
+  .tile .note { margin: 2px 0 0; }
+  .card { padding: 20px; margin-bottom: 16px; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 20px; }
+  .two > * { min-width: 0; }
+  .two h3 { font-size: 15px; margin: 0; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th { color: var(--text-secondary); font-weight: 500; font-size: 13px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td small { color: var(--text-secondary); margin-left: 6px; }
+  tr:last-child td { border-bottom: 0; }
+  details { margin-top: 10px; overflow-x: auto; }
+  summary { cursor: pointer; color: var(--text-secondary); font-size: 13px; }
+  .big { font-size: 28px; font-weight: 600; }
+  footer { font-size: 13px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<main class="viz-root">
+  <h1>ForeverAH · {{ title }}</h1>
+  <p class="sub">Own scan {{ scan_time }}{% if prev_time %}, compared with the scan at {{ prev_time }} ({{ hours }} h earlier){% endif %}.
+    Beta data, thresholds untuned — this page shows the method, not advice to act on.</p>
+
+  <section class="tiles">
+    {% for t in tiles %}
+    <div class="tile"><div class="label">{{ t.label }}</div><div class="value">{{ t.value }}</div><p class="note">{{ t.note }}</p></div>
+    {% endfor %}
+  </section>
+
+  <section class="card">
+    <h2>Where the gold moves</h2>
+    <p class="why">Value traded per day by item: what to farm or craft. Own scan price × AHledger's sold-per-day estimate,
+      items selling at least {{ min_sold }} a day.</p>
+    <div id="fig-markets"></div>
+    <details><summary>Table</summary><div class="scroll"><table>
+      <tr><th>Item</th><th class="num">Traded per day</th><th class="num">Sold per day</th><th class="num">Median price</th></tr>
+      {% for m in markets %}<tr><td>{{ m.name }}</td><td class="num">{{ m.value }}</td><td class="num">{{ "{:,}".format(m.sold) }}</td><td class="num">{{ m.price }}</td></tr>{% endfor %}
+    </table></div></details>
+    <p class="note">Sold-per-day: <a href="{{ attribution.url }}">{{ attribution.text }}</a>.</p>
+  </section>
+
+  <section class="card">
+    <h2>Buy list: underpriced lots</h2>
+    <p class="why">Listings at least 30 % below both today's median and the 7-day median, in items that sell fast enough to
+      clear the lot within half a day. Profit is after a 5 % AH cut and a 1s deposit.</p>
+    <div class="scroll"><table>
+      <tr><th>Item</th><th class="num">Units</th><th class="num">Avg buy</th><th class="num">Relist at</th><th class="num">Cost</th>
+          <th class="num">Est. profit</th><th class="num">Return</th><th class="num">Sold per day</th></tr>
+      {% for d in deals %}<tr><td>{{ d.name }}</td><td class="num">{{ "{:,}".format(d.units) }}</td><td class="num">{{ d.avg }}</td>
+        <td class="num">{{ d.resale }}</td><td class="num">{{ d.cost }}</td><td class="num">{{ d.profit }}</td>
+        <td class="num">{{ d.roi }}</td><td class="num">{{ "{:,}".format(d.sold) }}</td></tr>{% endfor %}
+    </table></div>
+    <p class="note">7-day median and sold-per-day: <a href="{{ attribution.url }}">{{ attribution.text }}</a>. The scan is a snapshot — a lot may be gone minutes later.</p>
+  </section>
+
+  <section class="card">
+    <h2>Order book</h2>
+    <p class="why">How many units sit at each price. Shows where the price wall is, how much must sell before a listing is
+      the cheapest, and how far a purchase would move the price.</p>
+    <div class="two">
+      {% for b in books %}
+      <div>
+        <h3>{{ b.name }}</h3>
+        <p class="note" style="margin-top:0">Cheapest {{ b.min }} · {{ "{:,}".format(b.depth) }} units within 5 % of it</p>
+        <div id="{{ b.id }}"></div>
+        <details><summary>Cheapest 10 price levels</summary><table>
+          <tr><th class="num">Unit price</th><th class="num">Units</th></tr>
+          {% for l in b.levels %}<tr><td class="num">{{ l.price }}</td><td class="num">{{ "{:,}".format(l.units) }}</td></tr>{% endfor %}
+        </table></details>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Watchlist</h2>
+    <p class="why">Items from <code>plan/watchlist.yaml</code> found in the scan. Days of stock = units listed ÷ sold per day:
+      low means supply is tight, high means a glut. Changes are against the {{ prev_time }} scan.</p>
+    <div class="scroll"><table>
+      <tr><th>Item</th><th class="num">Min</th><th class="num">Median</th><th class="num">Units listed</th>
+          <th class="num">Within 5 % of min</th><th class="num">Sold per day</th><th class="num">Days of stock</th></tr>
+      {% for w in watchlist %}<tr><td>{{ w.name }}</td>
+        <td class="num">{{ w.min }}<small>{{ w.min_change }}</small></td>
+        <td class="num">{{ w.median }}<small>{{ w.median_change }}</small></td>
+        <td class="num">{{ "{:,}".format(w.units) }}<small>{{ w.units_change }}</small></td>
+        <td class="num">{{ "{:,}".format(w.depth) }}</td><td class="num">{{ "{:,}".format(w.sold) }}</td><td class="num">{{ w.days }}</td></tr>{% endfor %}
+    </table></div>
+    <p class="note">Sold-per-day: <a href="{{ attribution.url }}">{{ attribution.text }}</a>.</p>
+  </section>
+
+  <section class="card">
+    <h2>Can the scan be trusted?</h2>
+    <p class="why">Own scan against AHledger's scan from {{ ahl_time }}, one dot per item. Dots on the line agree.</p>
+    <div class="two">
+      <div id="fig-check"></div>
+      <div>
+        <div class="big">{{ check.agree }}</div>
+        <p class="note" style="margin-top:0">of {{ "{:,}".format(check.count) }} items have medians within 10 % of each other.</p>
+        <details open><summary>Largest differences among items selling {{ min_sold }}+ a day</summary><table>
+          <tr><th>Item</th><th class="num">Own</th><th class="num">AHledger</th><th class="num">Diff</th></tr>
+          {% for w in check.worst %}<tr><td>{{ w.name }}</td><td class="num">{{ w.own }}</td><td class="num">{{ w.ahl }}</td><td class="num">{{ w.diff }}</td></tr>{% endfor %}
+        </table></details>
+      </div>
+    </div>
+    <p class="note">Comparison data: <a href="{{ attribution.url }}">{{ attribution.text }}</a>.</p>
+  </section>
+
+  <section class="card">
+    <h2>Own trades</h2>
+    <p class="why">The ledger: what was posted, bought and sold, and what it really cost. No website has this.</p>
+    <section class="tiles" style="margin-bottom:12px">
+      <div class="tile"><div class="label">Balance</div><div class="value">{{ ledger.end }}</div><p class="note">from {{ ledger.start }}</p></div>
+      <div class="tile"><div class="label">Bought</div><div class="value">{{ ledger.bought }}</div><p class="note">from purchase mail</p></div>
+      <div class="tile"><div class="label">Sold</div><div class="value">{{ ledger.sold }}</div><p class="note">after AH cut</p></div>
+      <div class="tile"><div class="label">Deposits and fees</div><div class="value">{{ ledger.other }}</div><p class="note">{{ ledger.posts }} posts, from the balance</p></div>
+    </section>
+    <details><summary>Ledger rows</summary><div class="scroll"><table>
+      <tr><th>Time</th><th>Event</th><th>Item</th><th class="num">Qty</th><th class="num">Amount</th></tr>
+      {% for t in trades %}<tr><td>{{ t.time }}</td><td>{{ t.event }}</td><td>{{ t.item }}</td><td class="num">{{ t.qty }}</td><td class="num">{{ t.amount }}</td></tr>{% endfor %}
+    </table></div></details>
+  </section>
+
+  <footer>
+    <a href="{{ attribution.url }}">{{ attribution.text }}</a> — sold-per-day, 7-day medians, item names and the comparison scan
+    come from the AHledger API ({{ market }}). Everything else is from own in-game scans. Generated {{ generated }}.
+  </footer>
+</main>
+
+<script>{{ plotlyjs | safe }}</script>
+<script>
+  const FIGS = {{ figs_json | safe }};
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  // Charts take their colours from the CSS tokens, so light and dark share one definition.
+  function draw() {
+    const ink = { primary: css('--series-1'), context: css('--context') };
+    const axis = { gridcolor: css('--grid'), linecolor: css('--axis'), zerolinecolor: css('--axis'),
+                   tickfont: { color: css('--text-muted') }, automargin: true };
+    for (const [id, fig] of Object.entries(FIGS)) {
+      if (!document.getElementById(id)) continue;
+      const data = fig.data.map(tr => {
+        const c = ink[tr.meta.role], t = structuredClone(tr);
+        if (t.type === 'bar') { t.marker = { ...t.marker, color: c }; t.textfont = { color: css('--text-secondary') }; }
+        else if (t.mode === 'lines') t.line = { ...t.line, color: c };
+        else t.marker = { ...t.marker, color: c };
+        return t;
+      });
+      const layout = structuredClone(fig.layout);
+      Object.assign(layout, {
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { family: 'system-ui, -apple-system, "Segoe UI", sans-serif', size: 12, color: css('--text-secondary') },
+        hoverlabel: { bgcolor: css('--surface-1'), bordercolor: css('--axis'), font: { color: css('--text-primary') } },
+      });
+      layout.xaxis = { ...axis, ...layout.xaxis };
+      layout.yaxis = { ...axis, ...layout.yaxis };
+      Plotly.react(id, data, layout, { displayModeBar: false, responsive: true });
+    }
+  }
+  draw();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+</script>
+</body>
+</html>
