@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from pipeline import ahledger, analytics, news, planner  # noqa: E402
+from pipeline import ahledger, analytics, houses, news, planner  # noqa: E402
 
 # (item, count, buyout total, minBid, bid, timeLeft): 10 @ 100, 10 @ 200, 20 @ 300, one bid-only row
 ROWS = [(1, 10, 1000, 0, 0, 3), (1, 10, 2000, 0, 0, 3), (1, 20, 6000, 0, 0, 4), (1, 5, 0, 50, 0, 1)]
@@ -64,6 +64,23 @@ def test_parse_pricetable():
     assert (linen.low_30d, linen.high_30d, linen.sold_per_day) == (3, 104, 15079.4)
     assert prices[720].high_30d is None and prices[720].sold_per_day is None   # short line
     assert prices[55].median_7d is None and prices[55].sold_per_day == 0       # empty fields
+    # A house nobody has scanned yet (EU before launch): valid header, no rows.
+    assert ahledger.parse_pricetable("AHL1|forever/normal/horde/eu|1791734573|0\n") == (
+        {"market": "forever.normal.horde.eu", "ts": 1791734573, "rows": 0}, {})
+
+
+def test_houses():
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg = Path(tmp) / "houses.yaml"
+        cfg.write_text('tracked: [forever.normal.horde.eu, forever.normal.alliance.eu]\n'
+                       'realms:\n  "Classic Beta PvE": {ruleset: normal, region: us}\n', encoding="utf-8")
+        assert houses.tracked(cfg) == ["forever.normal.horde.eu", "forever.normal.alliance.eu"]
+        assert houses.house_id("Classic Beta PvE", "Horde", cfg) == "forever.normal.horde.us"
+        assert houses.house_id("Classic Beta PvE", "Alliance", cfg) == "forever.normal.alliance.us"
+        assert houses.house_id("Some EU Realm", "Horde", cfg) is None      # not known until launch
+        assert houses.house_id("Classic Beta PvE", "?", cfg) is None
+    assert "forever.normal.horde.eu" in houses.tracked() and "forever.normal.alliance.eu" in houses.tracked()
 
 
 def price(median_7d, sold):

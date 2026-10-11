@@ -52,10 +52,19 @@ def parse_pricetable(text: str) -> tuple[dict, dict[int, Price]]:
     return {"market": market.replace("/", "."), "ts": int(ts), "rows": int(rows)}, prices
 
 
-def pull_pricetable(market: str, data: Path = DATA) -> Path:
-    """Fetch the pricetable and keep the raw text as data/ahledger/<market>/<unix>.txt."""
+# Changed 2026-10-11: a house nobody has scanned yet (EU before launch) answers with a valid
+# header, 0 rows and the current time. Saving that every hour would only pile up empty files.
+# def pull_pricetable(market: str, data: Path = DATA) -> Path:
+#     """Fetch the pricetable and keep the raw text as data/ahledger/<market>/<unix>.txt."""
+#     text = _get(f"/v1/pricetable/{market}")
+#     header, _ = parse_pricetable(text)
+def pull_pricetable(market: str, data: Path = DATA) -> Path | None:
+    """Fetch the pricetable and keep the raw text as data/ahledger/<market>/<unix>.txt.
+    Returns None, and saves nothing, when the table is empty."""
     text = _get(f"/v1/pricetable/{market}")
-    header, _ = parse_pricetable(text)
+    header, prices = parse_pricetable(text)
+    if not prices:
+        return None
     path = data / "ahledger" / market / f"{header['ts']}.txt"
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists():   # same snapshot again: their scan hasn't changed
@@ -87,5 +96,7 @@ if __name__ == "__main__":
     if len(sys.argv) != 3 or sys.argv[1] != "pull":
         sys.exit(__doc__)
     saved = pull_pricetable(sys.argv[2])
+    if saved is None:   # added 2026-10-11
+        sys.exit(f"{sys.argv[2]}: no data yet - nobody has scanned this house")
     head, table = parse_pricetable(saved.read_text(encoding="utf-8"))
     print(f"{saved}: {len(table)} items, their scan at unix {head['ts']} - {ATTRIBUTION['text']} ({ATTRIBUTION['url']})")

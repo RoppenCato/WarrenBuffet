@@ -25,13 +25,14 @@ import yaml
 
 # Changed 2026-10-11: planner added for the Today page; money() moved to pipeline/analytics.py.
 # from pipeline import ahledger, analytics, savedvars
-from pipeline import ahledger, analytics, news, planner, savedvars   # news added 2026-10-11
+from pipeline import ahledger, analytics, houses, news, planner, savedvars   # news, houses added 2026-10-11
 from pipeline.analytics import money
 
 ROOT = Path(__file__).resolve().parent.parent
-# realm + faction -> AHledger market id (D12). Extend at launch.
-HOUSES = {("Classic Beta PvE", "Horde"): "forever.normal.horde.us",
-          ("Classic Beta PvE", "Alliance"): "forever.normal.alliance.us"}
+# Changed 2026-10-11: the realm -> house mapping moved to plan/houses.yaml (pipeline/houses.py).
+# # realm + faction -> AHledger market id (D12). Extend at launch.
+# HOUSES = {("Classic Beta PvE", "Horde"): "forever.normal.horde.us",
+#           ("Classic Beta PvE", "Alliance"): "forever.normal.alliance.us"}
 DEPTH_ITEMS = [2589, 2770]   # order books shown: Linen Cloth, Copper Ore
 MIN_SOLD = 50                # sold/day for an item to count as liquid
 
@@ -75,9 +76,11 @@ def build(sv: Path, market: str | None, pull: bool, out: Path) -> Path:
     cur = scans[-1]
     house = [s for s in scans if (s["realm"], s["faction"]) == (cur["realm"], cur["faction"])]
     prev = house[-2] if len(house) > 1 else None
-    market = market or HOUSES.get((cur["realm"], cur["faction"]))
+    # market = market or HOUSES.get((cur["realm"], cur["faction"]))
+    market = market or houses.house_id(cur["realm"], cur["faction"])
     if not market:
-        raise SystemExit(f"no house id known for {cur['realm']} / {cur['faction']} - pass --market")
+        # raise SystemExit(f"no house id known for {cur['realm']} / {cur['faction']} - pass --market")
+        raise SystemExit(f"realm {cur['realm']!r} is not in plan/houses.yaml - add it there, or pass --market")
 
     rows = savedvars.raw_rows(cur)
     book, agg = analytics.books(rows), savedvars.agg_rows(cur)

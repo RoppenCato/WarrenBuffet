@@ -1,0 +1,15 @@
+# Auction houses we track. Forever has one AH per ruleset x faction x region.
+# House ids are AHledger market ids: forever.<normal|pvp|rp>.<alliance|horde>.<us|eu>
+#
+# Decided 2026-10-11: Normal ruleset on EU. Faction is not decided, so both are pulled.
+
+tracked:
+  - forever.normal.horde.eu
+  - forever.normal.alliance.eu
+  - forever.normal.horde.us        # beta test house - remove after the beta ends (2026-10-22)
+
+# Realm name as the addon reports it (GetRealmName) -> ruleset and region. With the scan's
+# faction this gives the house id of an own scan. The EU launch realm names are not known yet:
+# add them on launch night (the name is in every scan header).
+realms:
+  "Classic Beta PvE": {ruleset: normal, region: us}
