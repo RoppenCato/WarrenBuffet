@@ -10,12 +10,12 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T3 | `ReplicateItems` full scan works in Forever client | Beta | ✅ 2026-10-11 |
 | T4 | SavedVariables size, write on logout, Python parse | Beta | ✅ 2026-10-11 |
 | T5 | Commodities included in replicate? AH type? | Beta | ✅ 2026-10-11 — included; deposit is at least 1s per post; neutral cut still open |
-| T6 | Ledger captures post/sold/bought/expired | Beta | ⚠️ 2026-10-11 — post, cancel, bought, cancelled correct in run 2; sold/expired not seen yet; money rows (v0.3) untested in game |
+| T6 | Ledger captures post/sold/bought/expired | Beta | ⚠️ 2026-10-11 — post, cancel, bought, cancelled, expired correct; sold and the money rows not seen yet |
 | T7 | Own scan vs AHledger agree on same hour | Beta/launch | ✅ 2026-10-11 — medians within 2 %, mins within 1 copper, 6 min apart |
 | T8 | Scheduled hourly pull runs unattended for 48h | PC | ⏳ — scheduled 2026-10-11 18:21, first run ok; check the log on 2026-10-13 evening |
-| T9 | Inventory and own-auctions snapshot | Beta | ⏳ before Oct 22 — addon v0.4 ready 2026-10-11 |
-| T10 | Log window, button, several characters | Beta | ⏳ before Oct 22 — addon v0.5 ready 2026-10-11 |
-| T11 | Item reference: names and vendor prices | Beta | ⏳ before Oct 22 — addon v0.6 ready 2026-10-11 |
+| T9 | Inventory and own-auctions snapshot | Beta | ⚠️ 2026-10-11 — bags correct, own-auctions query works and does not disturb the scan; bank and a live auction not tested |
+| T10 | Log window, button, several characters | Beta | ⚠️ 2026-10-11 — window built, button moved and remembered, no errors; second character not tested |
+| T11 | Item reference: names and vendor prices | Beta | ⚠️ 2026-10-11 — works, but one scan gave only 30 % of items; v0.6.1 looks again later, needs one more scan |
 
 ## T1 — AHledger API ✅
 
@@ -161,6 +161,20 @@ Result 2026-10-11, run 2 — **pass** (own scan 14:41 UTC, AHledger 14:35 UTC). 
 Across the whole house: 2,983 items appear in both scans, and 98 % of them have medians within 10 % of each other (97 % among the 473 items selling 50+ a day).
 
 Medians are within 2 %. Linen's min differs by 1 copper, which is 5.6 % at this price — the 5 % rule needs an absolute floor for cheap items. Linen quantity differs by 18 %; AHledger's hourly point an hour earlier (15,140 units) matches ours, so this looks like timing or their filtering, not a scan gap.
+
+## Run 3 — 2026-10-11 22:29, addon v0.6
+
+The user opened the AH (scan) and emptied the mailbox, then reloaded. Read from the SavedVariables file:
+
+- **No errors:** `errors` empty, no `uiErr`, no inventory `err`, no events missing, no `?` rows.
+- **T3:** third scan, 96,635 rows of 96,635, wait 28.5 s, processing 1.4 s, slowest frame 58 ms. The wait grows with the house (13 s at 79k, 21 s at 84k, 28.5 s at 97k) — the 30 s line in T3 will be crossed at launch size; the addon waits up to 120 s.
+- **T6:** first `expired` row — Minor Healing Potion ×1, itemID from the attachment. The balance stayed at 19c, so the 1s deposit is not returned on expiry. `gold` rows at login and logout are right (19c, no zero).
+- **T9:** bags saved as Linen Cloth 14, Refreshing Spring Water 19, Minor Healing Potion 1, Elixir of Minor Defense 1 — which matches the ledger (13 Linen cancelled back + 1 bought, the expired potion, the bought elixir). The own-auctions query ran two seconds after the AH opened, returned an empty list, and the scan still completed. Not tested: the bank (never opened) and a live auction, so whether the saved price is per unit or per stack is still open.
+- **T10:** the window was built from plain frames without error; the button was dragged and its position saved (`TOP 691, -141`); the window state was saved. Whether chat stayed clean has to come from the user.
+- **T11:** 937 of 3,128 scanned items got a reference line (30 %): the pass ran right after the scan, while the client was still loading item data. Values look right — Linen Cloth 13c, Copper Ore 5c, Minor Healing Potion 5c, stack sizes 20/20/5 — but none was checked at an in-game vendor. v0.6.1 repeats the pass 20 s later and when the AH closes.
+- With real vendor prices the launch-week preview finds listings under vendor price: crafted leather gear a few copper below (Dark Leather Cloak, 242 units at 4s 00c against 4s 08c). Real, but small — 19s on 9g 68s.
+
+Still open before Oct 22: one more scan with v0.6.1 (item coverage), one post of a stack of two or more (money rows, own-auction price), the bank opened once.
 
 ## T9 — Inventory and own auctions
 
