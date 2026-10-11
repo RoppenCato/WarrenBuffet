@@ -10,6 +10,7 @@
 local _, ns = ...
 
 local CHUNK = 500   -- items per frame
+local RETRY = 20    -- s after a scan before looking again (added 2026-10-11, see ns.RecordItems)
 local known         -- itemID -> true for what is already in the saved string
 
 local function Known()
@@ -20,8 +21,12 @@ local function Known()
   return known
 end
 
--- ids: the distinct item ids of a finished scan
-function ns.RecordItems(ids)
+-- Changed 2026-10-11 (beta run 3): one pass right after a scan caught only 937 of 3,128 items,
+-- because the client is still loading item data at that moment. The pass is now a local
+-- function that ns.RecordItems runs twice more: 20 s later, and when the AH closes.
+-- -- ids: the distinct item ids of a finished scan
+-- function ns.RecordItems(ids)
+local function Pass(ids)
   local GetInfo = C_Item and C_Item.GetItemInfo or GetItemInfo
   if not GetInfo then return end
   local have, added, i = Known(), 0, 1
@@ -61,3 +66,18 @@ function ns.RecordItems(ids)
   end
   Run()
 end
+
+local lastIds   -- the ids of the newest scan
+
+-- ids: the distinct item ids of a finished scan
+function ns.RecordItems(ids)
+  lastIds = ids
+  Pass(ids)
+  C_Timer.After(RETRY, function()
+    if lastIds == ids then Pass(ids) end
+  end)
+end
+
+ns.On("AUCTION_HOUSE_CLOSED", function()
+  if lastIds then Pass(lastIds) end
+end)

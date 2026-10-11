@@ -338,12 +338,28 @@ def test_item_reference_is_built_from_scans():
                    2770: {"name": "Copper Ore", "vendor": 5, "stack": 200, "class_id": 7, "subclass_id": 7}}
     assert any("item reference: 2 new items" in p for p in game.printed())
 
+    # Changed 2026-10-11 (beta run 3): no second scan needed any more - the reference is filled
+    # in again 20 s after the scan and when the AH closes, as the client finishes loading items.
+    # game.g.ITEM_INFO[4306] = info(["Silk Cloth", 150, 200, 7, 5])   # the client has loaded it by now
+    # game.close_ah()
+    # game.g.Advance(15 * 60)
+    # game.open_ah()
+    # ref = savedvars.items(game.db())
+    # assert sorted(ref) == [2589, 2770, 4306] and ref[4306]["vendor"] == 150
     game.g.ITEM_INFO[4306] = info(["Silk Cloth", 150, 200, 7, 5])   # the client has loaded it by now
-    game.close_ah()
-    game.g.Advance(15 * 60)
-    game.open_ah()
+    game.g.Advance(20)
+    game.frames(3)
     ref = savedvars.items(game.db())
     assert sorted(ref) == [2589, 2770, 4306] and ref[4306]["vendor"] == 150
+    game.set_auctions([[2589, 20, 400, 0, 0, True, 3], [118, 1, 10, 0, 0, False, 1]])
+    game.g.Advance(15 * 60)
+    game.fire("AUCTION_HOUSE_CLOSED")
+    game.open_ah()                                                   # a new scan with one new item
+    assert 118 not in savedvars.items(game.db())
+    game.g.ITEM_INFO[118] = info(["Minor Healing Potion", 5, 5, 0, 1])
+    game.close_ah()                                                  # closing the AH looks again
+    game.frames(3)
+    assert savedvars.items(game.db())[118]["vendor"] == 5
     assert game.db()["items"].count("Linen Cloth") == 1               # known items are not written twice
     assert "errors" not in game.db() or game.db()["errors"] == {}
 
