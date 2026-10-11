@@ -12,7 +12,7 @@ import datetime as dt
 import sys
 from pathlib import Path
 
-from pipeline import ahledger, houses, news
+from pipeline import ahledger, houses, news, storage
 
 ROOT = Path(__file__).resolve().parent.parent
 LOG = ROOT / "data" / "pull.log"
@@ -34,6 +34,11 @@ def run(data: Path = ROOT / "data") -> tuple[list[str], bool]:
         status.append(f"news: {new} new of {total}")
     except Exception as err:
         status.append(f"news: FAILED {err}")
+        ok = False
+    try:   # pulled pricetables go straight into the store, so history builds up unattended
+        status.append(f"stored: {storage.ingest_ahledger(data)} new")
+    except Exception as err:
+        status.append(f"store: FAILED {err}")
         ok = False
     return status, ok
 

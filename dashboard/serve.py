@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 
 from dashboard.build import ROOT, build, sv_path
-from pipeline import news
+from pipeline import news, savedvars, storage
 
 SITE = ROOT / "dashboard" / "site"
 
@@ -35,6 +35,15 @@ def refresh(sv: Path, out: Path = SITE) -> list[str]:
     except (Exception, SystemExit) as err:
         build(sv, None, False, out)
         steps.append(f"price pull failed ({err}); rebuilt from stored data")
+    try:   # added 2026-10-11: keep the Parquet store current as well
+        table = savedvars.load(sv)
+        scans = storage.ingest_scans(table)
+        storage.ingest_ahledger()
+        storage.ingest_ledger(table)
+        storage.prune()
+        steps.append(f"stored {scans['l1']} new scans")
+    except Exception as err:
+        steps.append(f"store failed ({err})")
     return steps
 
 
