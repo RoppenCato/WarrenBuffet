@@ -15,6 +15,7 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T8 | Scheduled hourly pull runs unattended for 48h | PC | ⏳ — scheduled 2026-10-11 18:21, first run ok; check the log on 2026-10-13 evening |
 | T9 | Inventory and own-auctions snapshot | Beta | ⚠️ 2026-10-11 — bags correct, own-auctions query works and does not disturb the scan; bank and a live auction not tested |
 | T10 | Log window, button, several characters | Beta | ⚠️ 2026-10-11 — window built, button moved and remembered, no errors; second character not tested |
+| T15 | Vendor prices recorded at the vendor | Beta | ⏳ before Oct 22 — addon v0.10 ready 2026-10-11 |
 | T13 | Recipes read from the profession window | Beta | ⏳ before Oct 22 — addon v0.9 ready 2026-10-11; needs a character with a crafting profession |
 | T14 | Disenchant results logged | Beta | ⏳ before Oct 22 — addon v0.9 ready 2026-10-11; needs an enchanter and one green item |
 | T12 | In-game plan and tooltip lines | Beta | ⏳ before Oct 22 — addon v0.8 ready 2026-10-11 |
@@ -208,6 +209,14 @@ Run:
 Check in the file: `ui` has the positions, `uiErr` and `errors` are absent or empty, `trader` is set, the ledger has rows for both characters and none for `?`, `inv` has an entry per character.
 
 Found before the run, 2026-10-11: a new character's first session (16:57) wrote a `gold` row with character `?` and 0 copper, and its login row is missing — Core's login handler failed or never ran, which then skipped the ledger's. v0.5 resolves the name later, isolates handlers and saves errors to the file.
+
+## T15 — Vendor log
+
+Added 2026-10-11 with `Vendors.lua` (addon v0.10). Only run offline so far.
+
+Run: open a trade goods vendor (one that sells thread or vials) and close it. The Log tab should say "<vendor>: N vendor prices saved". `/reload`.
+- Check in the file: `vendors` has a line per item with the price shown in game, the vendor's name and the zone; a limited-stock item has its count instead of -1.
+- Pass: prices match the vendor window. Then the Craft section prices thread at the vendor's price.
 
 ## T13 — Recipes
 

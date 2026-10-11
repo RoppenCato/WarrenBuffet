@@ -90,6 +90,15 @@ Added 2026-10-11 (addon v0.9, D37). When a profession window is open the addon s
 - Recipes that make no item (most enchants) are saved with output 0 and skipped by the planner.
 - Unverified in Forever until T13 runs.
 
+### Vendors
+
+Added 2026-10-11 (addon v0.10, D39). The game tells an addon what a vendor *pays* for any item (the Items table has that), but what a vendor *charges* is only visible at the vendor. Other addons ship a fixed list; there is none for Forever, so this one is collected.
+
+- Whenever a vendor window is open: `ForeverAHDB.vendors`, one line per item, `itemID⇥price⇥stack⇥available⇥vendor⇥zone`. `available` is -1 for unlimited stock, otherwise how many were left.
+- From `GetMerchantNumItems`, `GetMerchantItemID` and `C_MerchantFrame.GetItemInfo` (older `GetMerchantItemInfo` as fallback). Items bought with anything other than money are skipped. Nothing is bought.
+- Uses: the real cost of vendor-sold crafting materials (thread, vials), and things a vendor sells for less than they list for on the AH — limited-stock recipes above all.
+- Unverified in Forever until T15 runs.
+
 ### Disenchant log
 
 Added 2026-10-11 (addon v0.9, D38). Nobody has a disenchant table for Forever, so the addon records the player's own results: `ForeverAHDB.disenchants[i] = ts⇥itemID⇥quality⇥itemLevel⇥classID⇥materialID:qty,…`.
