@@ -38,6 +38,8 @@ Steady state < 2 GB on disk. Nothing under `data/` goes into git.
 - Measured in T4: 79k auctions → 1.3 MB of raw rows, 0.1 MB of aggregates. The ~4 MB/scan estimate above is high for beta-sized houses.
 - Cap: if file > ~20 MB, drop oldest raw scans first.
 - Inventory (`inv`, added 2026-10-11): latest bags, bank and own auctions per character as short strings — a few KB, overwritten in place.
+- Item reference (`items`, added 2026-10-11): one line per item with vendor price, stack size, class and name — about 40 bytes an item, written once. This is the "Reference" tier for items; it lives in the SavedVariables file rather than in git because the game is its source.
+- Two accounts means two SavedVariables files. `data/local.json` holds the game folder (`"wow"`); every `WTF/Account/*/SavedVariables/ForeverAH.lua` under it is loaded and merged (D32).
 
 ## Schema (L1, Parquet, partitioned by `date`)
 

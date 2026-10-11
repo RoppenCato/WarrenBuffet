@@ -26,6 +26,7 @@ Lessons from Classic 2019, Season of Mastery, Season of Discovery, Hardcore and 
 - Beta 2026-10-11: every post cost at least **1s**, even 1 Linen at 17c, and cancelling did not return it. Never post single cheap items — batch until the lot is worth far more than the deposit.
 - Don't buy anything speculative. Gold now is worth more than gold later.
 - **Signals:** `deflation_rate` per item (log-price slope over 48h); `sell_now` = deflation_rate < 0 and price ≥ 1.3× 7-day median → sell stock now rather than hold [thresholds tuned on data].
+- **Launch week mode** (built 2026-10-11, D30): in the first week none of those signals exist yet — there is no 7-day median. The planner then runs on: vendor price as a floor, the 1s deposit against lot size, the price move since the previous own scan, and this section's rule to sell raw materials and not buy to resell. The only purchase it suggests is a listing below vendor price.
 
 ## 2. Month 1–2: levelers → endgame
 

@@ -15,6 +15,7 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T8 | Scheduled hourly pull runs unattended for 48h | PC | ⏳ — scheduled 2026-10-11 18:21, first run ok; check the log on 2026-10-13 evening |
 | T9 | Inventory and own-auctions snapshot | Beta | ⏳ before Oct 22 — addon v0.4 ready 2026-10-11 |
 | T10 | Log window, button, several characters | Beta | ⏳ before Oct 22 — addon v0.5 ready 2026-10-11 |
+| T11 | Item reference: names and vendor prices | Beta | ⏳ before Oct 22 — addon v0.6 ready 2026-10-11 |
 
 ## T1 — AHledger API ✅
 
@@ -50,7 +51,7 @@ Run 2026-10-11 on `forever.normal.horde.us`, Linen Cloth 2589 and Copper Ore 277
 
 First beta run: 2026-10-11, build 1.60.1.70338 (Interface 16001), realm "Classic Beta PvE", Horde, Undercity. Results are under each test. The fixes made after that run (addon v0.2) have only run offline.
 
-Combined run for the open items (2026-10-11, v0.5): `/reload` → `/fah` → open the bank → open the mailbox and take everything → open the AH, wait for the scan, post one stack of two or more units → `/reload`. That covers T6 (sold/expired mail, money rows), T9 and the first half of T10.
+Combined run for the open items (2026-10-11, v0.6): `/reload` → `/fah` → open the bank → open the mailbox and take everything → open the AH, wait for the scan, post one stack of two or more units → `/reload`. That covers T6 (sold/expired mail, money rows), T9, the first half of T10, and T11.
 
 Setup, once:
 1. Copy `addon\ForeverAH` to `World of Warcraft\_classic_beta_\Interface\AddOns\ForeverAH\`.
@@ -188,6 +189,14 @@ Run:
 Check in the file: `ui` has the positions, `uiErr` and `errors` are absent or empty, `trader` is set, the ledger has rows for both characters and none for `?`, `inv` has an entry per character.
 
 Found before the run, 2026-10-11: a new character's first session (16:57) wrote a `gold` row with character `?` and 0 copper, and its login row is missing — Core's login handler failed or never ran, which then skipped the ledger's. v0.5 resolves the name later, isolates handlers and saves errors to the file.
+
+## T11 — Item reference
+
+Added 2026-10-11 with `Items.lua` (addon v0.6). Only run offline so far. Needs nothing beyond the scan in the combined run.
+
+Check in the file after a scan and `/reload`: `items` has a line for most of the ~3,000 scanned items (the rest follow after the next scan); names are right; vendor prices match the game (hover an item at a vendor: Linen Cloth, Copper Ore); `errors` is empty.
+- Pass: at least 80 % of scanned items present after two scans, spot-checked prices correct.
+- Then: `python -m dashboard.build --date 2026-11-06` shows launch week mode with a real "Buy to vendor" list.
 
 ## T8 — Unattended pull
 

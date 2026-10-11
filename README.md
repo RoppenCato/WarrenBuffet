@@ -40,6 +40,7 @@ python -m venv .venv
 .venv\Scripts\python -m pipeline.storage ingest  (SavedVariables + pulls -> Parquet; `status` shows what is stored)
 .venv\Scripts\python tests\test_storage.py
 .venv\Scripts\python -m dashboard.serve          (http://localhost:8765, with a Refresh button)
+.venv\Scripts\python -m dashboard.build --date 2026-11-06 --out preview   (launch week mode, before launch)
 .venv\Scripts\python -m pipeline.savedvars "<...>\SavedVariables\ForeverAH.lua"
 ```
 

@@ -71,6 +71,15 @@ Added 2026-10-11 (D21). The planner can't say what to sell or repost without kno
 - Own auctions: two seconds after the AH opens the addon sends `C_AuctionHouse.QueryOwnedAuctions({})` — the same read-only query the Auctions tab sends — and saves the list on `OWNED_AUCTIONS_UPDATED`.
 - Unverified in Forever until T9 runs: which bank layout the client has, whether `buyoutAmount` is a unit price or a total for stacks, and whether the query disturbs the full scan.
 
+### Items (reference table)
+
+Added 2026-10-11 (D31). After each scan the addon records every item the client has data for: `ForeverAHDB.items`, one line per item, `itemID⇥vendor⇥stack⇥classID⇥subclassID⇥name`.
+
+- From `C_Item.GetItemInfo`. `vendor` is what a vendor pays for one unit in copper, 0 if vendors don't buy it.
+- An item is written once. Items the client has not loaded yet return nothing and are tried again after the next scan, so the table fills over the first few scans.
+- Uses: vendor price as the floor for sell suggestions, listings below vendor price, item names for the pages and for matching news headlines.
+- Unverified in Forever until T11 runs.
+
 ### Window (UI)
 
 Added 2026-10-11 (D26). Messages in the chat frame got in the way.
