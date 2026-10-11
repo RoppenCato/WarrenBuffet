@@ -145,6 +145,42 @@ def test_planner_repost_and_buy():
     assert deals[0]["max_price"] == 140 and "40 units" in deals[0]["why"]
 
 
+def test_launch_mode_rules():
+    """Week one: no 7-day prices. Vendor floor, deposit, trend since the last scan, and the playbook."""
+    books = {
+        1: [(90, 500)],        # was 120: falling, and supply has grown
+        2: [(150, 500)],       # was 100: rising
+        3: [(100, 500)],       # steady
+        4: [(100, 500)],       # no earlier scan
+        5: [(20, 500)],        # a vendor pays 19: the AH would leave less
+        6: [(17, 9000)],       # lot too small to post
+        7: [(300, 500)],       # watchlist says it is wanted at 60
+    }
+    prev = {1: [(120, 200)], 2: [(100, 500)], 3: [(101, 480)], 5: [(20, 500)], 6: [(17, 9000)], 7: [(300, 500)]}
+    held = {1: 100, 2: 100, 3: 100, 4: 100, 5: 100, 6: 13, 7: 100, 8: 5}
+    recs = {r["item_id"]: r for r in planner.sell_launch(held, books, prev, {5: 19, 6: 2, 8: 40}, {7: "stock_while_leveling"})}
+    assert [recs[i]["action"] for i in range(1, 9)] == ["sell", "sell", "sell", "sell", "vendor", "keep", "choice", "price"]
+    assert "fell 25%" in recs[1]["why"] and "supply grew 150%" in recs[1]["why"]
+    assert "rose 50%" in recs[2]["why"] and "steady" in recs[3]["why"] and "No earlier scan" in recs[4]["why"]
+    assert "vendor pays 19c each" in recs[5]["why"] and "leave 18c each" in recs[5]["why"] and recs[5]["net"] == 1900
+    assert "vendor it for 26c" in recs[6]["why"] and "level 60" in recs[7]["why"]
+    assert "vendor pays 40c" in recs[8]["why"]                      # no listings, but a floor is known
+    assert not any("7-day" in r["why"] for r in recs.values())      # nothing claims a history
+
+    assert planner.launch_mode("sell_to_levelers", books, {}) is True
+    assert planner.launch_mode(None, books, {}) is True             # a fresh market without a date
+    history = {i: price(100, 10) for i in books}
+    assert planner.launch_mode(None, books, history) is False and planner.launch_mode("levelers_to_60", books, history) is False
+
+
+def test_below_vendor_lots():
+    books = {1: [(10, 40), (30, 10), (60, 100)], 2: [(48, 3)], 3: [(5, 10)]}
+    lots = planner.below_vendor(books, {1: 50, 2: 50}, balance=500)
+    assert [(d["item_id"], d["units"], d["cost"], d["max_price"], d["profit"], d["affordable"]) for d in lots] == [
+        (1, 50, 700, 30, 1800, False)]                              # item 2 would earn 6c: not worth the walk
+    assert planner.below_vendor(books, {}) == []                    # no vendor prices, no suggestions
+
+
 def test_planner_calendar():
     import datetime as dt
     plan = {"events": [{"id": "beta_end", "start": dt.datetime(2026, 10, 22, 6), "note": "Beta ends."},
@@ -157,6 +193,7 @@ def test_planner_calendar():
     assert before["phase"] is None
     assert [(e["id"], e["days"]) for e in before["upcoming"]] == [("beta_end", 11), ("name_reservation", 16), ("launch", 25)]
     assert planner.calendar(plan, dt.date(2026, 11, 6))["phase"]["id"] == "sell_to_levelers"
+    assert planner.calendar(plan, dt.date(2026, 11, 6))["phase_day"] == 2 and before["phase_day"] is None
     assert planner.calendar(plan, dt.date(2026, 11, 20))["phase"]["id"] == "levelers_to_60"
     assert planner.calendar(plan, dt.date(2026, 12, 5))["phase"] is None
 

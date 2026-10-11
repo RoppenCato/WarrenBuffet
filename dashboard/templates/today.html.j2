@@ -4,10 +4,27 @@
   <p class="sub">Suggestions from the scan at {{ scan_time }}, {{ age }} ago{% if stale %} — <strong>rescan before acting</strong>{% endif %}.
     Each line says why. You make every click; nothing here acts for you. Beta data, thresholds untuned.</p>
 
+  {% if launch %}
+  <section class="card">
+    <h2>Launch week{% if launch.dated %} · day {{ launch.day }} of 7{% endif %}</h2>
+    <p class="why">{% if launch.dated %}{{ launch.focus }}{% else %}This market is new: almost nothing has a price history yet.{% endif %}
+      The usual rules compare with a normal price, and there is none yet, so this week runs on simpler ones:</p>
+    <ul style="margin:0;padding-left:20px;max-width:72ch">
+      <li>Sell raw materials as you level. Their prices peak in the first days and fall as gathering catches up.</li>
+      <li>Never sell on the AH for less than a vendor pays.</li>
+      <li>Every post costs at least 1s. Post full stacks, not single items.</li>
+      <li>Don't buy to resell. The only purchase suggested is one a vendor pays more for.</li>
+    </ul>
+  </section>
+  {% endif %}
+
   <section class="tiles">
     {% for t in tiles %}
     <div class="tile"><div class="label">{{ t.label }}</div><div class="value">{{ t.value }}</div><p class="note">{{ t.note }}</p></div>
     {% endfor %}
+    {% if launch %}
+    <div class="tile"><div class="label">Mount fund</div><div class="value">{{ mount.pct }}</div><p class="note">{{ mount.have }} of {{ mount.goal }} for the level 40 mount</p></div>
+    {% endif %}
   </section>
 
   <section class="card">
@@ -55,7 +72,11 @@
         <td class="num">{{ "{:,}".format(r.units) }}</td><td>{{ r.where }}</td><td class="num">{{ r.price }}</td><td class="num">{{ r.net }}</td>
         <td class="reason">{{ r.why }}</td></tr>{% endfor %}
     </table></div>
+    {% if launch %}
+    <p class="note">"You get" is after a 5 % AH cut and a 1s deposit; on a "Vendor it" line it is what the vendor pays. Vendor prices come from the game, via the addon.</p>
+    {% else %}
     <p class="note">"You get" is after a 5 % AH cut and a 1s deposit. 7-day medians and sold-per-day: <a href="{{ attribution.url }}">{{ attribution.text }}</a>.</p>
+    {% endif %}
     {% endif %}
     {% if inv_err %}<p class="note">Inventory snapshot error: {{ inv_err }}</p>{% endif %}
   </section>
@@ -77,6 +98,26 @@
     {% endif %}
   </section>
 
+  {% if launch %}
+  <section class="card">
+    <h2>Buy to vendor</h2>
+    <p class="why">Listings priced under what a vendor pays: buy them, sell them to any vendor. No deposit, no cut, no waiting.
+      Nothing is suggested to resell this week. {{ balance }}.</p>
+    {% if vendor_buys %}
+    <div class="scroll"><table>
+      <tr><th>Do</th><th>Item</th><th class="num">Up to</th><th class="num">At or under</th><th class="num">Vendor pays</th><th class="num">Cost</th><th class="num">Profit</th><th>Why</th></tr>
+      {% for r in vendor_buys %}<tr><td><span class="act{% if r.quiet %} quiet{% endif %}">{{ r.label }}</span></td><td>{{ r.name }}</td>
+        <td class="num">{{ "{:,}".format(r.units) }}</td><td class="num">{{ r.max_price }}</td><td class="num">{{ r.vendor }}</td>
+        <td class="num">{{ r.cost }}</td><td class="num">{{ r.profit }}</td><td class="reason">{{ r.why }}</td></tr>{% endfor %}
+    </table></div>
+    <p class="note">A lot can be gone minutes after the scan. Vendor prices come from the game itself, via the addon.</p>
+    {% elif has_vendor %}
+    <p class="note">Nothing is listed under its vendor price in this scan.</p>
+    {% else %}
+    <p class="note">No vendor prices yet. The addon collects them during a scan (v0.6 and later).</p>
+    {% endif %}
+  </section>
+  {% else %}
   <section class="card">
     <h2>Buy</h2>
     <p class="why">Lots priced well under their normal level in items that sell fast, to relist. {{ balance }}.</p>
@@ -92,6 +133,7 @@
     <p class="note">Nothing passes the rules in this scan.</p>
     {% endif %}
   </section>
+  {% endif %}
 
   <section class="card">
     <h2>Calendar</h2>

@@ -83,7 +83,10 @@ def sv_path(arg: str | None) -> list[Path]:
     raise SystemExit('no SavedVariables path: pass --sv, set FOREVERAH_SV, or put {"wow": "<game folder>"} in data/local.json')
 
 
-def build(sv, market: str | None, pull: bool, out: Path) -> Path:   # sv: a path, or one per account
+# Changed 2026-10-11: `today` added so a date can be previewed (launch week before launch).
+# def build(sv, market: str | None, pull: bool, out: Path) -> Path:   # sv: a path, or one per account
+def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None = None) -> Path:
+    today = today or dt.date.today()
     db = savedvars.load(sv)
     scans = [s for s in db.get("scans") or [] if s.get("raw")]
     if not scans:
@@ -156,11 +159,27 @@ def build(sv, market: str | None, pull: bool, out: Path) -> Path:   # sv: a path
             inv[key] = max(seen)
     budget = summary["chars"][trader]["last"] if trader in summary["chars"] else summary["last"]
     plan = yaml.safe_load((ROOT / "plan" / "calendar.yaml").read_text(encoding="utf-8"))
-    cal = planner.calendar(plan, dt.date.today())
-    sells = planner.sell(dict(holdings), book, ahl, cal["phase"]["id"] if cal["phase"] else None)
+    # Changed 2026-10-11: launch week mode (D30). In a market's first week nothing has a price
+    # history, so a different rule set runs: vendor floor, deposit, trend since the last scan.
+    # cal = planner.calendar(plan, dt.date.today())
+    # sells = planner.sell(dict(holdings), book, ahl, cal["phase"]["id"] if cal["phase"] else None)
+    cal = planner.calendar(plan, today)
+    phase_id = cal["phase"]["id"] if cal["phase"] else None
+    reference = savedvars.items(db)                       # names and vendor prices from the addon
+    vendor = {i: r["vendor"] for i, r in reference.items()}
+    names.update({i: r["name"] for i, r in reference.items()})
+    category = {e["id"]: cat for cat, entries in watch.items() for e in entries if e.get("id")}
+    launch = planner.launch_mode(phase_id, book, ahl)
+    if launch:
+        sells = planner.sell_launch(dict(holdings), book, prev_book, vendor, category)
+    else:
+        sells = planner.sell(dict(holdings), book, ahl, phase_id)
     reposts = planner.repost(inv["auctions"], book)
     # buys = planner.buy(book, ahl, summary["last"])   (2026-10-11: the trader's gold is the budget)
-    buys = planner.buy(book, ahl, budget)
+    # buys = planner.buy(book, ahl, budget)   (2026-10-11: no flips in launch week, only below-vendor lots)
+    buys = [] if launch else planner.buy(book, ahl, budget)
+    vendor_buys = planner.below_vendor(book, vendor, budget) if launch else []
+    wanted += [d["item_id"] for d in vendor_buys]
     wanted += list(holdings) + [a["item"] for a in inv["auctions"]] + [d["item_id"] for d in buys]
     names.update(ahledger.item_names(market, [i for i in wanted if i not in names], ROOT / "data"))
 
@@ -277,7 +296,8 @@ def build(sv, market: str | None, pull: bool, out: Path) -> Path:   # sv: a path
         "generated": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
     # ---- Today page (added 2026-10-11): the planner's suggestions, formatted
-    labels = {"sell": "Sell", "hold": "Hold", "keep": "Keep collecting", "price": "Check price",
+    labels = {"vendor": "Vendor it", "choice": "Your call",   # launch week actions, added 2026-10-11
+              "sell": "Sell", "hold": "Hold", "keep": "Keep collecting", "price": "Check price",
               "repost": "Repost", "leave": "Leave", "buy": "Buy", "short": "Over budget"}
     quiet = {"keep", "price", "leave", "short", "hold"}
 
@@ -335,9 +355,19 @@ def build(sv, market: str | None, pull: bool, out: Path) -> Path:   # sv: a path
         #               net=money(r["net"]) if r["action"] in ("sell", "hold") else "") for r in sells],
         # "reposts": [row(r, r["action"], price=money(r["price"]), cheapest=money(r["cheapest"]) if r["cheapest"] else "none",
         #                 left=f"{r['hours']:.1f} h") for r in reposts],
+        # "net" also shown for vendor and your-call rows (2026-10-11)
         "sells": [row(r, r["action"], price=money(r["price"]) if "price" in r else "",
-                      net=money(r["net"]) if r["action"] in ("sell", "hold") else "",
+                      net=money(r["net"]) if r["action"] in ("sell", "hold", "vendor", "choice") else "",
                       where=", ".join(where.get(r["item_id"], []))) for r in sells],
+        # Launch week mode (added 2026-10-11)
+        "launch": {"day": cal["phase_day"], "focus": cal["phase"].get("focus", "") if cal["phase"] else "",
+                   "dated": phase_id in planner.NO_HOLD_PHASES} if launch else None,
+        "mount": {"have": money(summary["last"]), "goal": money(planner.MOUNT_FUND),
+                  "pct": f"{min(1, summary['last'] / planner.MOUNT_FUND):.0%}"},
+        "has_vendor": bool(vendor),
+        "vendor_buys": [row(d, "buy" if d["affordable"] else "short", max_price=money(d["max_price"]),
+                            vendor=money(d["vendor"]), cost=money(d["cost"]), profit=money(d["profit"]))
+                        for d in vendor_buys],
         "reposts": [row(r, r["action"], price=money(r["price"]), cheapest=money(r["cheapest"]) if r["cheapest"] else "none",
                         left=f"{r['hours']:.1f} h", char=r["char"]) for r in reposts],
         "buys": [row(d, "buy" if d["affordable"] else "short", max_price=money(d["max_price"]), resale=money(d["resale"]),
@@ -367,8 +397,11 @@ if __name__ == "__main__":
     parser.add_argument("--pull", action="store_true", help="fetch a fresh AHledger pricetable first")
     # parser.add_argument("--out", default=str(ROOT / "dashboard" / "site" / "index.html"))   (2026-10-11: a directory now)
     parser.add_argument("--out", default=str(ROOT / "dashboard" / "site"), help="output directory")
+    parser.add_argument("--date", type=dt.date.fromisoformat,   # added 2026-10-11
+                        help="pretend today is this date, e.g. 2026-11-06 to preview launch week")
     args = parser.parse_args()
     # if not args.sv:
     #     parser.error("--sv or FOREVERAH_SV is required")
     # print(build(Path(args.sv), args.market, args.pull, Path(args.out)))
-    print(build(sv_path(args.sv), args.market, args.pull, Path(args.out)))
+    # print(build(sv_path(args.sv), args.market, args.pull, Path(args.out)))
+    print(build(sv_path(args.sv), args.market, args.pull, Path(args.out), args.date))
