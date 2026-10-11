@@ -2,7 +2,10 @@
 -- With it the pipeline knows what a vendor pays (the price floor, and listings below it are free
 -- money) and what things are called, without asking an outside source. Read-only.
 --
---   ForeverAHDB.items = "itemID\tvendor\tstack\tclassID\tsubclassID\tname\n..."
+-- Changed 2026-10-11 (v0.9): quality and item level added, for valuing gear by what it
+-- disenchants into. The old six-field lines are dropped once and collected again (itemsV = 2).
+-- --   ForeverAHDB.items = "itemID\tvendor\tstack\tclassID\tsubclassID\tname\n..."
+--   ForeverAHDB.items = "itemID\tvendor\tstack\tclassID\tsubclassID\tquality\titemLevel\tname\n..."
 -- vendor = what a vendor pays for one unit, in copper (0 = vendors do not buy it).
 -- An item is added once, the first time the client has its data; items it has not loaded yet
 -- are tried again after the next scan.
@@ -15,6 +18,9 @@ local known         -- itemID -> true for what is already in the saved string
 
 local function Known()
   if not known then
+    if ns.db.itemsV ~= 2 then   -- lines from before v0.9 lack quality and item level
+      ns.db.items, ns.db.itemsV = "", 2
+    end
     known = {}
     for id in (ns.db.items or ""):gmatch("(%d+)\t[^\n]*\n") do known[tonumber(id)] = true end
   end
@@ -36,11 +42,14 @@ local function Pass(ids)
     for k = i, math.min(i + CHUNK - 1, #ids) do
       local id = ids[k]
       if not have[id] then
-        local name, _, _, _, _, _, _, stack, _, _, vendor, classID, subclassID = GetInfo(id)
+        -- local name, _, _, _, _, _, _, stack, _, _, vendor, classID, subclassID = GetInfo(id)
+        local name, _, quality, level, _, _, _, stack, _, _, vendor, classID, subclassID = GetInfo(id)
         if name then
           have[id] = true
           n = n + 1
-          out[n] = table.concat({ id, vendor or 0, stack or 1, classID or -1, subclassID or -1, name }, "\t")
+          -- out[n] = table.concat({ id, vendor or 0, stack or 1, classID or -1, subclassID or -1, name }, "\t")
+          out[n] = table.concat({ id, vendor or 0, stack or 1, classID or -1, subclassID or -1, quality or -1,
+            level or 0, name }, "\t")
         end
       end
     end

@@ -41,6 +41,8 @@ def merge(dbs: list[dict]) -> dict:
                 out["scans"].append(scan)
         out["ledger"] += list(db.get("ledger") or [])
         out["inv"].update(db.get("inv") or {})
+        out.setdefault("recipes", {}).update(db.get("recipes") or {})          # added 2026-10-11 (v0.9)
+        out.setdefault("disenchants", []).extend(db.get("disenchants") or [])  # added 2026-10-11 (v0.9)
         out["errors"] += list(db.get("errors") or [])
         out["throttled"] += db.get("throttled") or 0
         for line in (db.get("items") or "").split("\n"):
@@ -142,12 +144,52 @@ def ledger_rows(db: dict) -> list[dict]:
 def items(db: dict) -> dict[int, dict]:
     """Item reference saved by Items.lua: {item_id: {name, vendor, stack, class_id, subclass_id}}.
     vendor is what a vendor pays for one unit, in copper (0 = not sellable to vendors)."""
+    # Changed 2026-10-11: lines from addon v0.9 on also carry quality and item level (eight fields).
+    # out = {}
+    # for line in (db.get("items") or "").split("\n"):
+    #     if line:
+    #         item_id, vendor, stack, class_id, subclass_id, name = line.split("\t", 5)
+    #         out[int(item_id)] = {"name": name, "vendor": int(vendor), "stack": int(stack),
+    #                              "class_id": int(class_id), "subclass_id": int(subclass_id)}
+    # return out
     out = {}
     for line in (db.get("items") or "").split("\n"):
-        if line:
-            item_id, vendor, stack, class_id, subclass_id, name = line.split("\t", 5)
-            out[int(item_id)] = {"name": name, "vendor": int(vendor), "stack": int(stack),
-                                 "class_id": int(class_id), "subclass_id": int(subclass_id)}
+        if not line:
+            continue
+        fields = line.split("\t")
+        rec = {"vendor": int(fields[1]), "stack": int(fields[2]), "class_id": int(fields[3]), "subclass_id": int(fields[4])}
+        if len(fields) >= 8:
+            rec.update(quality=int(fields[5]), level=int(fields[6]), name="\t".join(fields[7:]))
+        else:
+            rec["name"] = "\t".join(fields[5:])
+        out[int(fields[0])] = rec
+    return out
+
+
+def recipes(db: dict) -> list[dict]:
+    """Learned recipes saved by Recipes.lua, one dict per character and recipe:
+    char, profession, skill, ts, recipe_id, name, item_id (0 = makes no item), qty_min, qty_max,
+    cooldown (seconds left when read), reagents {item_id: qty}."""
+    out = []
+    for char, professions in (db.get("recipes") or {}).items():
+        for profession, rec in professions.items():
+            for line in (rec.get("list") or "").split("\n"):
+                if not line:
+                    continue
+                recipe_id, item_id, low, high, cooldown, reagents, name = line.split("\t", 6)
+                out.append({"char": char, "profession": profession, "skill": rec.get("skill", 0), "ts": rec.get("ts", 0),
+                            "recipe_id": int(recipe_id), "name": name, "item_id": int(item_id), "qty_min": int(low),
+                            "qty_max": int(high), "cooldown": int(cooldown), "reagents": _counts(reagents)})
+    return out
+
+
+def disenchants(db: dict) -> list[dict]:
+    """Disenchant results saved by Disenchant.lua: ts, item_id, quality, level, class_id, gave {item_id: qty}."""
+    out = []
+    for line in db.get("disenchants") or []:
+        ts, item_id, quality, level, class_id, gave = line.split("\t")
+        out.append({"ts": int(ts), "item_id": int(item_id), "quality": int(quality), "level": int(level),
+                    "class_id": int(class_id), "gave": _counts(gave)})
     return out
 
 
@@ -205,6 +247,11 @@ def report(path) -> None:
                 print(f"  T5 {name} {item_id}: NOT in scan")
     events = Counter(row["event"] for row in ledger_rows(db))
     print(f"\nledger: {dict(events) or 'empty'}")
+    # Added 2026-10-11 (v0.9): recipes and disenchant results.
+    known = Counter((r["char"], r["profession"]) for r in recipes(db))
+    for (char, profession), count in sorted(known.items()):
+        print(f"recipes {char}: {profession}, {count} learned")
+    print(f"disenchants logged: {len(disenchants(db))}")
     # Added 2026-10-11: holdings saved by Inventory.lua.
     for char, inv in inventory(db).items():
         print(f"inventory {char}: {len(inv['bags'])} items in bags, {len(inv['bank'])} in bank, "

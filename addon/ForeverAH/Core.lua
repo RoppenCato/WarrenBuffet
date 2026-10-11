@@ -86,6 +86,8 @@ ns.On("ADDON_LOADED", function(name)
   db.inv = db.inv or {}            -- added 2026-10-11: holdings per character, see Inventory.lua
   db.ui = db.ui or {}              -- added 2026-10-11: window and button state, see UI.lua
   db.errors = db.errors or {}      -- added 2026-10-11: see ns.Error
+  db.recipes = db.recipes or {}          -- added 2026-10-11 (v0.9): see Recipes.lua
+  db.disenchants = db.disenchants or {}  -- added 2026-10-11 (v0.9): see Disenchant.lua
   for _, text in ipairs(earlyErrors) do db.errors[#db.errors + 1] = text end
   ns.db = db
 end)

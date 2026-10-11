@@ -37,6 +37,7 @@ local function Indexes(patterns, fallback)
 end
 
 local carried = Indexes(CARRIED, { 0, 1, 2, 3, 4 })
+ns.CarriedBags = carried   -- added 2026-10-11 (v0.9): Disenchant.lua compares the same bags
 local bank = Indexes(BANK, { -1, 5, 6, 7, 8, 9, 10, 11 })
 local account = Indexes(ACCOUNT, {})
 

@@ -345,8 +345,11 @@ def test_item_reference_is_built_from_scans():
     game.g.ITEM_INFO = info({2589: info(["Linen Cloth", 13, 200, 7, 5]), 2770: info(["Copper Ore", 5, 200, 7, 7])})
     game.open_ah()
     ref = savedvars.items(game.db())
-    assert ref == {2589: {"name": "Linen Cloth", "vendor": 13, "stack": 200, "class_id": 7, "subclass_id": 5},
-                   2770: {"name": "Copper Ore", "vendor": 5, "stack": 200, "class_id": 7, "subclass_id": 7}}
+    # Changed 2026-10-11 (v0.9): the reference also has quality and item level.
+    # assert ref == {2589: {"name": "Linen Cloth", "vendor": 13, "stack": 200, "class_id": 7, "subclass_id": 5},
+    #                2770: {"name": "Copper Ore", "vendor": 5, "stack": 200, "class_id": 7, "subclass_id": 7}}
+    assert ref == {2589: {"name": "Linen Cloth", "vendor": 13, "stack": 200, "class_id": 7, "subclass_id": 5, "quality": 1, "level": 10},
+                   2770: {"name": "Copper Ore", "vendor": 5, "stack": 200, "class_id": 7, "subclass_id": 7, "quality": 1, "level": 10}}
     assert any("item reference: 2 new items" in p for p in game.printed())
 
     # Changed 2026-10-11 (beta run 3): no second scan needed any more - the reference is filled
@@ -373,6 +376,103 @@ def test_item_reference_is_built_from_scans():
     assert savedvars.items(game.db())[118]["vendor"] == 5
     assert game.db()["items"].count("Linen Cloth") == 1               # known items are not written twice
     assert "errors" not in game.db() or game.db()["errors"] == {}
+
+
+def test_old_item_reference_is_rebuilt_once():
+    """Lines saved before v0.9 have no quality or item level: dropped once, collected again."""
+    game = Game()
+    game.lua.execute('ForeverAHDB.items = "2589\\t13\\t200\\t7\\t5\\tLinen Cloth\\n"')
+    info = game.lua.table_from
+    game.g.ITEM_INFO = info({2589: info(["Linen Cloth", 13, 200, 7, 5, 1, 5])})
+    game.set_auctions([[2589, 20, 400, 0, 0, True, 3]])
+    game.open_ah()
+    db = game.db()
+    assert db["itemsV"] == 2 and db["items"].count("Linen Cloth") == 1
+    assert savedvars.items(db)[2589] == {"name": "Linen Cloth", "vendor": 13, "stack": 200, "class_id": 7,
+                                         "subclass_id": 5, "quality": 1, "level": 5}
+    # the parser still reads a file that has the old lines
+    assert savedvars.items({"items": "2589\t13\t200\t7\t5\tLinen Cloth\n"})[2589]["name"] == "Linen Cloth"
+
+
+def test_recipes_are_read_from_the_profession_window():
+    game = Game()
+    rec = game.lua.table_from
+    game.g.RECIPES = rec([
+        rec({"id": 3915, "name": "Linen Bag", "learned": True, "output": 4238, "cooldown": 0,
+             "reagents": rec([rec([2996, 3]), rec([2320, 3]), rec([9999, 1, 2])])}),      # third one is optional: left out
+        rec({"id": 2385, "name": "Brown Linen Vest", "learned": False, "output": 2568, "reagents": rec([rec([2996, 1])])}),
+        rec({"id": 18560, "name": "Mooncloth", "learned": True, "output": 14342, "min": 1, "max": 1, "cooldown": 7200.4,
+             "reagents": rec([rec([14256, 2])])}),
+        rec({"id": 7421, "name": "Runed Copper Rod", "learned": True, "reagents": rec([rec([6217, 1])])}),   # makes no item
+    ])
+    game.fire("TRADE_SKILL_SHOW")
+    for _ in range(4):                                   # the list update comes in bursts
+        game.fire("TRADE_SKILL_LIST_UPDATE")
+    game.g.Advance(1)
+    game.frames(1)
+    recipes = savedvars.recipes(game.db())
+    assert [(r["name"], r["item_id"], r["reagents"], r["cooldown"]) for r in recipes] == [
+        ("Linen Bag", 4238, {2996: 3, 2320: 3}, 0), ("Mooncloth", 14342, {14256: 2}, 7200), ("Runed Copper Rod", 0, {6217: 1}, 0)]
+    assert {(r["char"], r["profession"], r["skill"]) for r in recipes} == {("Tester-BetaRealm", "Tailoring", 75)}
+    assert sum("Tailoring: 3 recipes saved" in p for p in game.printed()) == 1   # said once, not on every update
+
+    game.fire("TRADE_SKILL_LIST_UPDATE")                 # nothing changed: nothing said
+    game.g.Advance(1)
+    game.frames(1)
+    assert sum("recipes saved" in p for p in game.printed()) == 1
+
+    game.g.TRADESKILL_LINKED = True                      # someone else's linked profession is not ours
+    game.g.PROFESSION = rec({"professionName": "Alchemy", "skillLevel": 300, "maxSkillLevel": 300})
+    game.fire("TRADE_SKILL_SHOW")
+    game.g.Advance(1)
+    game.frames(1)
+    assert {r["profession"] for r in savedvars.recipes(game.db())} == {"Tailoring"}
+    assert "errors" not in game.db() or game.db()["errors"] == {}
+
+
+def test_recipe_api_missing_is_recorded_once():
+    game = Game()
+    game.lua.execute("C_TradeSkillUI.GetRecipeSchematic = nil")
+    for _ in range(3):
+        game.fire("TRADE_SKILL_SHOW")
+        game.g.Advance(1)
+        game.frames(1)
+    errors = game.db()["errors"]
+    assert len(errors) == 1 and "recipes" in errors[0] and "missing" in errors[0]
+
+
+def test_disenchant_results_are_logged():
+    game = Game()
+    info = game.lua.table_from
+    game.g.ITEM_INFO = info({1495: info(["Calico Shoes", 20, 1, 4, 1, 2, 12]), 10940: info(["Strange Dust", 0, 20, 7, 12])})
+
+    def bags(items):
+        game.g.SetBag(0, 16, info([info(i) for i in items]))
+
+    bags([[1, 1495, 1, True], [2, 2589, 14, False], [3, 10940, 1, False]])
+    game.fire("UNIT_SPELLCAST_START", "player", "cast-1", 13262)
+    game.fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 13262)
+    bags([[2, 2589, 14, False], [3, 10940, 1, False]])     # the shoes are gone, the loot is not in yet
+    game.fire("BAG_UPDATE_DELAYED")
+    assert game.db()["disenchants"] == {}
+    bags([[2, 2589, 14, False], [3, 10940, 3, False], [4, 10938, 1, False]])
+    game.fire("BAG_UPDATE_DELAYED")
+    rows = savedvars.disenchants(game.db())
+    assert [(r["item_id"], r["quality"], r["level"], r["class_id"], r["gave"]) for r in rows] == [
+        (1495, 2, 12, 4, {10940: 2, 10938: 1})]
+    assert any("Disenchanted Calico Shoes: " in p and "Strange Dust x2" in p for p in game.printed())
+
+    game.fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 2575)      # some other spell: nothing
+    bags([[2, 2589, 10, False], [3, 10940, 3, False]])
+    game.fire("BAG_UPDATE_DELAYED")
+    game.fire("UNIT_SPELLCAST_START", "player", "cast-3", 13262)         # started, then interrupted
+    game.fire("UNIT_SPELLCAST_INTERRUPTED", "player", "cast-3", 13262)
+    bags([[3, 10940, 3, False]])
+    game.fire("BAG_UPDATE_DELAYED")
+    game.fire("UNIT_SPELLCAST_START", "party1", "cast-4", 13262)         # someone else's cast
+    game.fire("UNIT_SPELLCAST_SUCCEEDED", "party1", "cast-4", 13262)
+    game.fire("BAG_UPDATE_DELAYED")
+    assert len(savedvars.disenchants(game.db())) == 1
 
 
 def test_ledger_mail_is_logged_once():

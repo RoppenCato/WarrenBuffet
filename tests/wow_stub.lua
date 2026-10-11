@@ -280,7 +280,11 @@ function C_AuctionHouse.CalculateCommodityDeposit(_, _, quantity) return 7 * qua
 C_Item = {
   DoesItemExist = function(item) return item.id ~= nil end,
   GetItemID = function(item) return item.id end,
-  GetItemNameByID = function(id) return ({ [2589] = "Linen Cloth", [2770] = "Copper Ore" })[id] end,
+  -- Changed 2026-10-11 (v0.9): also knows the items a test put in ITEM_INFO.
+  -- GetItemNameByID = function(id) return ({ [2589] = "Linen Cloth", [2770] = "Copper Ore" })[id] end,
+  GetItemNameByID = function(id)
+    return ({ [2589] = "Linen Cloth", [2770] = "Copper Ore" })[id] or (ITEM_INFO[id] and ITEM_INFO[id][1])
+  end,
 }
 
 -- Added 2026-10-11 for Items.lua. An item missing from ITEM_INFO is "not cached yet": nil.
@@ -289,8 +293,44 @@ function C_Item.GetItemInfo(id)
   if type(id) ~= "number" then error("bad argument #1 to 'GetItemInfo'") end
   local it = ITEM_INFO[id]
   if not it then return nil end
-  return it[1], "|Hitem:" .. id .. "|h", 1, 10, 1, "Trade Goods", "Cloth", it[3], "", 0, it[2], it[4], it[5], 0, 0, nil, true
+  -- return it[1], "|Hitem:" .. id .. "|h", 1, 10, 1, "Trade Goods", "Cloth", it[3], "", 0, it[2], it[4], it[5], 0, 0, nil, true
+  -- (2026-10-11, v0.9: optional 6th and 7th entries give quality and item level)
+  return it[1], "|Hitem:" .. id .. "|h", it[6] or 1, it[7] or 10, 1, "Trade Goods", "Cloth", it[3], "", 0, it[2], it[4], it[5], 0, 0, nil, true
 end
+
+-- Added 2026-10-11 (v0.9) for Recipes.lua: the profession window's data, Mainline shape.
+PROFESSION = { professionName = "Tailoring", skillLevel = 75, maxSkillLevel = 150 }
+RECIPES = {}          -- { {id=, name=, learned=, output=, min=, max=, cooldown=, reagents={ {item, qty, type}, ... }}, ... }
+TRADESKILL_LINKED = false
+Enum = Enum or {}
+Enum.CraftingReagentType = { Modifying = 0, Basic = 1, Finishing = 2 }
+C_TradeSkillUI = {}
+function C_TradeSkillUI.IsTradeSkillLinked() return TRADESKILL_LINKED end
+function C_TradeSkillUI.IsTradeSkillGuild() return false end
+function C_TradeSkillUI.GetChildProfessionInfo() return PROFESSION end
+function C_TradeSkillUI.GetAllRecipeIDs()
+  local ids = {}
+  for i, r in ipairs(RECIPES) do ids[i] = r.id end
+  return ids
+end
+local function recipe(id)
+  if type(id) ~= "number" then error("bad argument #1: recipe id expected") end
+  for _, r in ipairs(RECIPES) do if r.id == id then return r end end
+end
+function C_TradeSkillUI.GetRecipeInfo(id)
+  local r = recipe(id)
+  return r and { recipeID = r.id, name = r.name, learned = r.learned }
+end
+function C_TradeSkillUI.GetRecipeSchematic(id, isRecraft)
+  if type(isRecraft) ~= "boolean" then error("bad argument #2: isRecraft expected") end
+  local r = recipe(id)
+  local slots = {}
+  for i, g in ipairs(r.reagents) do
+    slots[i] = { reagents = { { itemID = g[1] } }, quantityRequired = g[2], reagentType = g[3] or 1 }
+  end
+  return { recipeID = r.id, outputItemID = r.output, quantityMin = r.min or 1, quantityMax = r.max or 1, reagentSlotSchematics = slots }
+end
+function C_TradeSkillUI.GetRecipeCooldown(id) return recipe(id).cooldown end
 
 AUCTION_EXPIRED_MAIL_SUBJECT = "Auction expired: %s"
 AUCTION_REMOVED_MAIL_SUBJECT = "Auction cancelled: %s"
