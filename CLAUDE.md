@@ -31,7 +31,7 @@ tests/             Offline tests (addon runs under a stubbed WoW API)
 
 ## Commands
 
-- Tests: `.venv\Scripts\python tests\test_addon.py` and `tests\test_addon_inventory.py` (venv: `python -m venv .venv`, then `pip install -r requirements.txt`)
+- Tests: `.venv\Scripts\python tests\test_addon.py`, `tests\test_addon_inventory.py` and `tests\test_addon_ui.py` (venv: `python -m venv .venv`, then `pip install -r requirements.txt`)
 - T4/T5 report on a real file: `.venv\Scripts\python -m pipeline.savedvars "<...>\SavedVariables\ForeverAH.lua"`
 - Pipeline tests: `.venv\Scripts\python tests\test_pipeline.py`
 - Dashboard: `.venv\Scripts\python -m dashboard.build --sv "<...>\ForeverAH.lua" --pull` → `dashboard/site/` (ignored): `index.html` = Today (suggestions), `market.html` = detail. Local server with the Refresh button: `.venv\Scripts\python -m dashboard.serve` (also the `dashboard` entry in `.claude/launch.json`). The SavedVariables path comes from `--sv`, `FOREVERAH_SV` or `data/local.json`.
@@ -52,4 +52,6 @@ The Today page shows the prompt "Review the flagged news" when stories are waiti
 - `## Interface:` in the `.toc` comes from `/dump select(4, GetBuildInfo())` in game. Beta build 1.60.1.70338 = 16001.
 - Forever's AH is retail-style: quantity + unit price, stackables are commodities, durations 2/8/24 h. Beta findings are in `docs/07-test-plan.md` — read them before trusting the wiki.
 - SavedVariables are written on logout or `/reload` only: `WTF\Account\<ACCOUNT>\SavedVariables\ForeverAH.lua`.
+- The test stub's widgets reject method names it does not list (`tests/wow_stub.lua`). When the addon needs a new frame method, add the real name there — never loosen the check.
+- After a beta run, read `errors`, `uiErr` and `inv[...].err` in the SavedVariables file before anything else.
 - Nothing here can be tested in game by Claude — say so, and give the user the exact in-game steps.

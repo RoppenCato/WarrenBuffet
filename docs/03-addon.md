@@ -71,6 +71,25 @@ Added 2026-10-11 (D21). The planner can't say what to sell or repost without kno
 - Own auctions: two seconds after the AH opens the addon sends `C_AuctionHouse.QueryOwnedAuctions({})` — the same read-only query the Auctions tab sends — and saves the list on `OWNED_AUCTIONS_UPDATED`.
 - Unverified in Forever until T9 runs: which bank layout the client has, whether `buyoutAmount` is a unit price or a total for stacks, and whether the query disturbs the full scan.
 
+### Window (UI)
+
+Added 2026-10-11 (D26). Messages in the chat frame got in the way.
+
+- A small button ("FAH") and a log window, both draggable; positions and state are saved in `ForeverAHDB.ui`.
+- Left-click the button: open or close the window. Right-click: quiet mode, in which the window never opens by itself.
+- Scan messages and `/fah` open the window. Ledger lines and "next scan in N min" never do; while it is closed the button counts them ("FAH 3").
+- Built from plain frames and textures, no Blizzard templates. If building it fails, messages fall back to chat and the reason is saved in `ForeverAHDB.uiErr`.
+- Handler errors are saved in `ForeverAHDB.errors` (last 20) as well as shown by the game, and one failing handler no longer stops the others.
+
+### Several characters
+
+Added 2026-10-11 (D27). One character trades (a bank alt); others also open the AH.
+
+- SavedVariables are per account, so every character writes to the same scans, ledger and inventory. Ledger rows and inventory snapshots carry the character.
+- Any character scans. Same faction means the same house, so it is the same data; the 15-minute throttle and our timer are account-wide. A character on the other faction scans a different house — scans carry realm and faction.
+- `/fah trader` on the trading character stores it in `ForeverAHDB.trader`. The dashboard plans purchases with that character's gold and adds up holdings across all characters.
+- The character name is resolved at login and again when the world loads; balance rows wait until it is known.
+
 ### PlanView
 
 - Python writes `addon/ForeverAH/ForeverAH_Plan.lua` (listed in the `.toc`) with today's buy/sell/craft list and price targets.

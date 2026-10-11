@@ -14,6 +14,7 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T7 | Own scan vs AHledger agree on same hour | Beta/launch | ✅ 2026-10-11 — medians within 2 %, mins within 1 copper, 6 min apart |
 | T8 | Scheduled hourly pull runs unattended for 48h | PC | ⏳ |
 | T9 | Inventory and own-auctions snapshot | Beta | ⏳ before Oct 22 — addon v0.4 ready 2026-10-11 |
+| T10 | Log window, button, several characters | Beta | ⏳ before Oct 22 — addon v0.5 ready 2026-10-11 |
 
 ## T1 — AHledger API ✅
 
@@ -49,7 +50,7 @@ Run 2026-10-11 on `forever.normal.horde.us`, Linen Cloth 2589 and Copper Ore 277
 
 First beta run: 2026-10-11, build 1.60.1.70338 (Interface 16001), realm "Classic Beta PvE", Horde, Undercity. Results are under each test. The fixes made after that run (addon v0.2) have only run offline.
 
-Combined run for the open items (2026-10-11, v0.4): `/reload` → `/fah` → open the bank → open the mailbox and take everything → open the AH, wait for the scan, post one stack of two or more units → `/reload`. That covers T6 (sold/expired mail, money rows) and T9.
+Combined run for the open items (2026-10-11, v0.5): `/reload` → `/fah` → open the bank → open the mailbox and take everything → open the AH, wait for the scan, post one stack of two or more units → `/reload`. That covers T6 (sold/expired mail, money rows), T9 and the first half of T10.
 
 Setup, once:
 1. Copy `addon\ForeverAH` to `World of Warcraft\_classic_beta_\Interface\AddOns\ForeverAH\`.
@@ -172,6 +173,21 @@ Run:
 
 Check in the file: bags and bank counts match what is in game; soulbound items are absent; the posted stack is in `auctions` with the right quantity; no `err`; the scan still saved its rows (the own-auctions query must not disturb it).
 - Pass: all of the above. Then build the dashboard — the Today page lists what is held and what is listed.
+
+## T10 — Window and several characters
+
+Added 2026-10-11 with `UI.lua` (addon v0.5). Only run offline so far.
+
+Run:
+1. After `/reload`: a small "FAH" button is on screen and nothing from ForeverAH appears in chat. Drag it somewhere.
+2. Left-click it: the window opens and closes. `/fah` opens it with the status lines.
+3. Open the AH: the window opens by itself for the scan. Close it, post something: it stays closed and the button shows a count.
+4. Right-click the button (quiet mode), `/reload`: button and window are where they were left.
+5. On the trading character type `/fah trader`. Log in on another character, open the AH there, `/reload`.
+
+Check in the file: `ui` has the positions, `uiErr` and `errors` are absent or empty, `trader` is set, the ledger has rows for both characters and none for `?`, `inv` has an entry per character.
+
+Found before the run, 2026-10-11: a new character's first session (16:57) wrote a `gold` row with character `?` and 0 copper, and its login row is missing — Core's login handler failed or never ran, which then skipped the ledger's. v0.5 resolves the name later, isolates handlers and saves errors to the file.
 
 ## T8 — Unattended pull
 
