@@ -84,10 +84,11 @@ Added 2026-10-11 (D31). After each scan the addon records every item the client 
 
 Added 2026-10-11 (D26). Messages in the chat frame got in the way.
 
-- A small button ("FAH") and a log window, both draggable; positions and state are saved in `ForeverAHDB.ui`.
-- Left-click the button: open or close the window. Right-click: quiet mode, in which the window never opens by itself.
-- Scan messages and `/fah` open the window. Ledger lines and "next scan in N min" never do; while it is closed the button counts them ("FAH 3").
-- Built from plain frames and textures, no Blizzard templates. If building it fails, messages fall back to chat and the reason is saved in `ForeverAHDB.uiErr`.
+- A round button on the minimap rim and a log window; positions and state are saved in `ForeverAHDB.ui`.
+- Left-click the button: open or close the window. Right-click: quiet mode, in which the window never opens by itself. Drag: move it around the minimap.
+- Scan messages and `/fah` open the window. Ledger lines and "next scan in N min" never do; while it is closed the button shows how many are unread.
+- v0.7 (2026-10-11), after the first real use: the window is in the HIGH strata and raises itself (it had been hidden behind the AH window), opens beside the AH until the player moves it, has a border, a title bar, a close button and a status line ("Last scan 22:29 - 96,635 auctions, 3,128 items - next in 12 min"). Ledger lines are sentences ("Posted Copper Ore x40 at 25c each for 8 h"); the raw row is still what gets saved. Scan diagnostics only show with `/fah debug`.
+- Templates used: `BackdropTemplate` and `UIPanelCloseButton`. If either is missing the first version's plain window is used, and without a minimap the first version's floating button; `ForeverAHDB.uiNote` says so. If no window can be built at all, messages fall back to chat and the reason is saved in `ForeverAHDB.uiErr`.
 - Handler errors are saved in `ForeverAHDB.errors` (last 20) as well as shown by the game, and one failing handler no longer stops the others.
 
 ### Several characters

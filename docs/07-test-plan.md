@@ -176,6 +176,8 @@ The user opened the AH (scan) and emptied the mailbox, then reloaded. Read from 
 
 Still open before Oct 22: one more scan with v0.6.1 (item coverage), one post of a stack of two or more (money rows, own-auction price), the bank opened once.
 
+User feedback on run 3: it worked, but the window was behind the auction house window; a minimap button and a nicer look were asked for. That is UI v0.7 (D35), offline-tested only. To check in game: the coin button sits on the minimap and can be dragged around it; the window opens beside the AH, in front of it, with a border and a status line; ledger lines read as sentences; `uiNote` and `uiErr` are absent from the file.
+
 ## T9 — Inventory and own auctions
 
 Added 2026-10-11 with `Inventory.lua` (addon v0.4). Only run offline so far.
