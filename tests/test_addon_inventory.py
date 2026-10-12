@@ -78,6 +78,12 @@ def test_own_auctions_snapshot():
     game.slash("")
     assert any("inventory: 0 items in bags, 0 in bank (open the bank once), 2 own auctions" in p for p in game.printed())
 
+    # Added 2026-10-12 (beta run 4): a new auction makes the addon ask for the list again.
+    game.fire("AUCTION_HOUSE_AUCTION_CREATED", 54999999)
+    game.g.Advance(1)
+    game.frames(1)
+    assert game.g.QUERY_OWNED == 2
+
 
 def test_api_failure_is_recorded_not_raised():
     game = Game()

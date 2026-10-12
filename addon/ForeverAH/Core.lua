@@ -134,7 +134,8 @@ local function Status()
   -- ns.Print("/fah scan = scan now (AH open), /fah item <id> = item in latest scan")
   ns.Print("trader: %s", db.trader or "not set - type /fah trader on the character that sells")
   -- ns.Print("/fah scan = scan now (AH open), /fah item <id> = item in latest scan, /fah trader = this character trades")
-  ns.Print("/fah scan  /fah item <id>  /fah trader  /fah debug")   -- 2026-10-11: shortened, debug added
+  -- ns.Print("/fah scan  /fah item <id>  /fah trader  /fah debug")   -- 2026-10-11: shortened, debug added
+  ns.Print("/fah scan  /fah item <id>  /fah trader  /fah recipes  /fah debug")   -- 2026-10-12: recipes added
 end
 
 SLASH_FOREVERAH1 = "/fah"
@@ -150,6 +151,9 @@ SlashCmdList.FOREVERAH = function(msg)
     ns.db.trader = ns.char
     ns.Print("trader set to %s", ns.char)
   -- Added 2026-10-11 (v0.7): the scan diagnostics used for the beta tests, off by default.
+  -- Added 2026-10-12: read the open profession window now and say what each API answered.
+  elseif cmd == "recipes" then
+    ns.ReadRecipes()
   elseif cmd == "debug" then
     ns.db.debug = not ns.db.debug
     ns.Print("scan diagnostics %s", ns.db.debug and "on" or "off")

@@ -430,15 +430,82 @@ def test_recipes_are_read_from_the_profession_window():
     assert "errors" not in game.db() or game.db()["errors"] == {}
 
 
-def test_recipe_api_missing_is_recorded_once():
+# Changed 2026-10-12 (beta run 4): a missing modern API is no longer an error - the Classic APIs
+# are tried, and every attempt leaves a probe line saying what each one answered.
+# def test_recipe_api_missing_is_recorded_once():
+#     game = Game()
+#     game.lua.execute("C_TradeSkillUI.GetRecipeSchematic = nil")
+#     for _ in range(3):
+#         game.fire("TRADE_SKILL_SHOW")
+#         game.g.Advance(1)
+#         game.frames(1)
+#     errors = game.db()["errors"]
+#     assert len(errors) == 1 and "recipes" in errors[0] and "missing" in errors[0]
+def test_recipe_probe_says_what_each_api_answered():
+    game = Game()                                        # a profession window with nothing in it yet
+    game.fire("TRADE_SKILL_SHOW")
+    probe = game.db()["probe"]["recipes"]
+    assert "TRADE_SKILL_SHOW | modern: profession=Tailoring id=nil recipes=0 learned=0 | classic: no API | craft: no API" in probe
+    assert game.db()["recipes"] == {} and game.db()["errors"] == {}
+    game.slash("recipes")                                # the same line on request
+    assert "/fah recipes | modern: profession=Tailoring" in game.printed()[-1]
+
+
+CLASSIC_API = """
+local skills = {
+  { name = "Bags", kind = "header" },
+  { name = "Linen Bag", kind = "easy", item = "|Hitem:4238::::|h[Linen Bag]|h", spell = "|Henchant:3915|h[Linen Bag]|h",
+    reagents = { { "|Hitem:2996::::|h[Bolt of Linen Cloth]|h", 3 }, { "|Hitem:2320::::|h[Coarse Thread]|h", 3 } } },
+  { name = "Mooncloth", kind = "optimal", item = "|Hitem:14342::::|h[Mooncloth]|h", cooldown = 7200,
+    reagents = { { "|Hitem:14256::::|h[Felcloth]|h", 2 } } },
+}
+function GetTradeSkillLine() return "Tailoring", 75, 150 end
+function GetNumTradeSkills() return #skills end
+function GetTradeSkillInfo(i) return skills[i].name, skills[i].kind end
+function GetTradeSkillNumReagents(i) return #(skills[i].reagents or {}) end
+function GetTradeSkillReagentInfo(i, r) return "name", 0, skills[i].reagents[r][2], 0 end
+function GetTradeSkillReagentItemLink(i, r) return skills[i].reagents[r][1] end
+function GetTradeSkillNumMade(i) return 1, 1 end
+function GetTradeSkillItemLink(i) return skills[i].item end
+function GetTradeSkillRecipeLink(i) return skills[i].spell end
+function GetTradeSkillCooldown(i) return skills[i].cooldown end
+
+local crafts = {
+  { name = "Runed Copper Rod", kind = "optimal", link = "|Hitem:6218::::|h[Runed Copper Rod]|h",
+    reagents = { { "|Hitem:6217::::|h[Copper Rod]|h", 1 }, { "|Hitem:10940::::|h[Strange Dust]|h", 1 } } },
+  { name = "Enchant Bracer - Minor Health", kind = "optimal", link = "|Henchant:7418|h[Enchant Bracer - Minor Health]|h",
+    reagents = { { "|Hitem:10940::::|h[Strange Dust]|h", 1 } } },
+}
+function GetCraftDisplaySkillLine() return "Enchanting", 40, 75 end
+function GetNumCrafts() return #crafts end
+function GetCraftInfo(i) return crafts[i].name, "", crafts[i].kind end
+function GetCraftNumReagents(i) return #crafts[i].reagents end
+function GetCraftReagentInfo(i, r) return "name", 0, crafts[i].reagents[r][2], 0 end
+function GetCraftReagentItemLink(i, r) return crafts[i].reagents[r][1] end
+function GetCraftItemLink(i) return crafts[i].link end
+"""
+
+
+def test_recipes_from_the_classic_profession_windows():
+    """A Classic-style client: the modern API answers nothing, the old trade skill and craft APIs do."""
     game = Game()
-    game.lua.execute("C_TradeSkillUI.GetRecipeSchematic = nil")
-    for _ in range(3):
-        game.fire("TRADE_SKILL_SHOW")
-        game.g.Advance(1)
-        game.frames(1)
-    errors = game.db()["errors"]
-    assert len(errors) == 1 and "recipes" in errors[0] and "missing" in errors[0]
+    game.lua.execute(CLASSIC_API)
+    game.fire("TRADE_SKILL_SHOW")
+    game.fire("CRAFT_SHOW")
+    game.g.Advance(1)
+    game.frames(1)
+    recipes = {r["name"]: r for r in savedvars.recipes(game.db())}
+    assert sorted(recipes) == ["Enchant Bracer - Minor Health", "Linen Bag", "Mooncloth", "Runed Copper Rod"]
+    bag = recipes["Linen Bag"]
+    assert (bag["profession"], bag["skill"], bag["recipe_id"], bag["item_id"], bag["reagents"]) == (
+        "Tailoring", 75, 3915, 4238, {2996: 3, 2320: 3})
+    assert recipes["Mooncloth"]["cooldown"] == 7200
+    rod, bracer = recipes["Runed Copper Rod"], recipes["Enchant Bracer - Minor Health"]
+    assert (rod["profession"], rod["item_id"], rod["reagents"]) == ("Enchanting", 6218, {6217: 1, 10940: 1})
+    assert (bracer["item_id"], bracer["recipe_id"]) == (0, 7418)          # an enchant makes no item
+    probe = game.db()["probe"]["recipes"]
+    assert "classic: profession=Tailoring rows=3 recipes=2" in probe and "craft: profession=Enchanting rows=2 recipes=2" in probe
+    assert game.db()["errors"] == {}
 
 
 def test_disenchant_results_are_logged():

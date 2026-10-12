@@ -4,7 +4,7 @@
 ## Interface: 16001
 ## Title: ForeverAH
 ## Notes: AH scanner and own-transaction ledger. Reads and displays only - never posts, buys, bids or cancels.
-## Version: 0.10.0
+## Version: 0.10.1
 ## SavedVariables: ForeverAHDB
 
 Core.lua

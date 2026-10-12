@@ -138,6 +138,15 @@ ns.On("AUCTION_HOUSE_SHOW", function()
 end)
 ns.On("AUCTION_HOUSE_CLOSED", function() ahOpen = false end)
 ns.On("OWNED_AUCTIONS_UPDATED", function() Save("auctions", Auctions) end)
+-- Added 2026-10-12 (beta run 4): a stack posted 13 s before /reload was missing from the
+-- snapshot - the list is only refreshed when something asks. Ask again after each new auction.
+ns.On("AUCTION_HOUSE_AUCTION_CREATED", function()
+  C_Timer.After(1, function()
+    if ahOpen and C_AuctionHouse.QueryOwnedAuctions then
+      Save("auctionsQuery", C_AuctionHouse.QueryOwnedAuctions, {})
+    end
+  end)
+end)
 
 local function Entries(text, sep)
   return text and text ~= "" and select(2, text:gsub("[^" .. sep .. "]+", "")) or 0
