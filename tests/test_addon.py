@@ -444,11 +444,41 @@ def test_recipes_are_read_from_the_profession_window():
 def test_recipe_probe_says_what_each_api_answered():
     game = Game()                                        # a profession window with nothing in it yet
     game.fire("TRADE_SKILL_SHOW")
-    probe = game.db()["probe"]["recipes"]
-    assert "TRADE_SKILL_SHOW | modern: profession=Tailoring id=nil recipes=0 learned=0 | classic: no API | craft: no API" in probe
+    # Changed 2026-10-12 (beta run 5): the probe is a short history, and says where the name came from.
+    # probe = game.db()["probe"]["recipes"]
+    # assert "TRADE_SKILL_SHOW | modern: profession=Tailoring id=nil recipes=0 learned=0 | classic: no API | craft: no API" in probe
+    probe = game.db()["probe"]["recipes"][-1]
+    assert "TRADE_SKILL_SHOW | modern: profession=Tailoring (from base) id=nil recipes=0 learned=0 | classic: no API | craft: no API" in probe
     assert game.db()["recipes"] == {} and game.db()["errors"] == {}
     game.slash("recipes")                                # the same line on request
     assert "/fah recipes | modern: profession=Tailoring" in game.printed()[-1]
+    for _ in range(12):
+        game.slash("recipes")
+    assert len(game.db()["probe"]["recipes"]) == 8       # the last eight are kept
+
+
+def test_profession_name_comes_from_whoever_has_one():
+    """Beta run 5: 261 recipes, 5 learned, and an empty name from the child-profession call."""
+    def tailor(**stub):
+        game = Game()
+        rec = game.lua.table_from
+        game.g.RECIPES = rec([rec({"id": 3915, "name": "Linen Bag", "learned": True, "output": 4238,
+                                   "reagents": rec([rec([2996, 3])])})])
+        for key, value in stub.items():
+            game.g[key] = rec(value) if isinstance(value, dict) else value
+        game.fire("TRADE_SKILL_SHOW")
+        return game, {r["profession"] for r in savedvars.recipes(game.db())}, game.db()["probe"]["recipes"][-1]
+
+    _, professions, probe = tailor()                                   # as in Forever: child empty, base named
+    assert professions == {"Tailoring"} and "(from base)" in probe
+    _, professions, probe = tailor(CHILD_PROFESSION={"professionName": "Classic Tailoring", "parentProfessionName": "Tailoring",
+                                                     "skillLevel": 75, "maxSkillLevel": 150})
+    assert professions == {"Tailoring"} and "(from child)" in probe    # a client with child professions
+    _, professions, probe = tailor(PROFESSION={"professionName": ""}, RECIPE_PROFESSION={"professionName": "Tailoring"})
+    assert professions == {"Tailoring"} and "(from recipe)" in probe   # neither call has it: ask the recipe
+    game, professions, probe = tailor(PROFESSION={"professionName": ""})
+    assert professions == {"Profession 3915"} and "(from none)" in probe   # nobody has it: still saved
+    assert game.db()["errors"] == {}
 
 
 CLASSIC_API = """
@@ -503,7 +533,8 @@ def test_recipes_from_the_classic_profession_windows():
     rod, bracer = recipes["Runed Copper Rod"], recipes["Enchant Bracer - Minor Health"]
     assert (rod["profession"], rod["item_id"], rod["reagents"]) == ("Enchanting", 6218, {6217: 1, 10940: 1})
     assert (bracer["item_id"], bracer["recipe_id"]) == (0, 7418)          # an enchant makes no item
-    probe = game.db()["probe"]["recipes"]
+    # probe = game.db()["probe"]["recipes"]   (2026-10-12: a history now)
+    probe = game.db()["probe"]["recipes"][-1]
     assert "classic: profession=Tailoring rows=3 recipes=2" in probe and "craft: profession=Enchanting rows=2 recipes=2" in probe
     assert game.db()["errors"] == {}
 

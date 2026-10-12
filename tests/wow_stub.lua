@@ -307,7 +307,17 @@ Enum.CraftingReagentType = { Modifying = 0, Basic = 1, Finishing = 2 }
 C_TradeSkillUI = {}
 function C_TradeSkillUI.IsTradeSkillLinked() return TRADESKILL_LINKED end
 function C_TradeSkillUI.IsTradeSkillGuild() return false end
-function C_TradeSkillUI.GetChildProfessionInfo() return PROFESSION end
+-- Changed 2026-10-12 (beta run 5): in Forever the child call answers with an empty record, and
+-- the base call has the profession. CHILD_PROFESSION lets a test say what the child call returns.
+-- function C_TradeSkillUI.GetChildProfessionInfo() return PROFESSION end
+CHILD_PROFESSION = { professionName = "", professionID = 0 }
+RECIPE_PROFESSION = nil
+function C_TradeSkillUI.GetChildProfessionInfo() return CHILD_PROFESSION end
+function C_TradeSkillUI.GetBaseProfessionInfo() return PROFESSION end
+function C_TradeSkillUI.GetProfessionInfoByRecipeID(id)
+  if type(id) ~= "number" then error("bad argument #1: recipe id expected") end
+  return RECIPE_PROFESSION
+end
 function C_TradeSkillUI.GetAllRecipeIDs()
   local ids = {}
   for i, r in ipairs(RECIPES) do ids[i] = r.id end

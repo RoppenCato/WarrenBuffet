@@ -31,6 +31,11 @@ local function ItemID(link)
   return link and tonumber(link:match("item:(%d+)"))
 end
 
+-- Added 2026-10-12 (beta run 5): a profession info only counts if it has a name.
+local function Named(info)
+  return info and info.professionName and info.professionName ~= "" and info or nil
+end
+
 -- The Mainline API. Returns profession, skill, max, lines, and a note for the probe.
 local function ReadModern()
   local T = C_TradeSkillUI
@@ -39,14 +44,25 @@ local function ReadModern()
   if (T.IsTradeSkillLinked and T.IsTradeSkillLinked()) or (T.IsTradeSkillGuild and T.IsTradeSkillGuild()) then
     return nil, nil, nil, {}, "modern: linked or guild window"
   end
-  local prof = (T.GetChildProfessionInfo and T.GetChildProfessionInfo()) or (T.GetBaseProfessionInfo and T.GetBaseProfessionInfo())
-  local profession = prof and (prof.parentProfessionName or prof.professionName)
+  -- Changed 2026-10-12 (beta run 5): the probe showed 261 recipes, 5 of them learned, and an
+  -- empty profession name with id 0. Forever has no "child" professions, so the child call
+  -- answers with an empty record - and because that record is not nil, the base profession was
+  -- never asked. Now: child if it has a name, else base, else the profession of a learned recipe.
+  -- local prof = (T.GetChildProfessionInfo and T.GetChildProfessionInfo()) or (T.GetBaseProfessionInfo and T.GetBaseProfessionInfo())
+  -- local profession = prof and (prof.parentProfessionName or prof.professionName)
+  local source = "child"
+  local prof = Named(T.GetChildProfessionInfo and T.GetChildProfessionInfo())
+  if not prof then
+    source, prof = "base", Named(T.GetBaseProfessionInfo and T.GetBaseProfessionInfo())
+  end
   local basic = Enum and Enum.CraftingReagentType and Enum.CraftingReagentType.Basic or 1
   local ids = T.GetAllRecipeIDs() or {}
   local out = {}
+  local firstLearned   -- added 2026-10-12: to ask which profession a learned recipe belongs to
   for _, recipeID in ipairs(ids) do
     local info = T.GetRecipeInfo(recipeID)
     if info and info.learned then
+      firstLearned = firstLearned or recipeID
       local schematic = T.GetRecipeSchematic(recipeID, false) or {}
       local reagents = {}
       for _, slot in ipairs(schematic.reagentSlotSchematics or {}) do
@@ -59,10 +75,24 @@ local function ReadModern()
         T.GetRecipeCooldown and T.GetRecipeCooldown(recipeID), reagents, info.name)
     end
   end
-  local note = ("modern: profession=%s id=%s recipes=%d learned=%d"):format(tostring(profession),
+  -- local note = ("modern: profession=%s id=%s recipes=%d learned=%d"):format(tostring(profession),
+  --   tostring(prof and prof.professionID), #ids, #out)
+  -- if not profession or profession == "" then return nil, nil, nil, {}, note end
+  -- return profession, prof.skillLevel, prof.maxSkillLevel, out, note
+  if not prof and firstLearned then
+    source, prof = "recipe", Named(T.GetProfessionInfoByRecipeID and T.GetProfessionInfoByRecipeID(firstLearned))
+  end
+  local profession = prof and ((prof.parentProfessionName and prof.parentProfessionName ~= "" and prof.parentProfessionName)
+    or prof.professionName)
+  if not profession and firstLearned then
+    -- Recipes without a name for their profession are still worth having; the key only has to
+    -- keep two professions apart.
+    source, profession = "none", "Profession " .. firstLearned
+  end
+  local note = ("modern: profession=%s (from %s) id=%s recipes=%d learned=%d"):format(tostring(profession), source,
     tostring(prof and prof.professionID), #ids, #out)
-  if not profession or profession == "" then return nil, nil, nil, {}, note end
-  return profession, prof.skillLevel, prof.maxSkillLevel, out, note
+  if not profession then return nil, nil, nil, {}, note end
+  return profession, prof and prof.skillLevel, prof and prof.maxSkillLevel, out, note
 end
 
 -- The Classic trade skill window (everything but enchanting in Classic clients).
@@ -137,7 +167,13 @@ local function Read(trigger)
   end
   local probe = GetServerTime() .. " " .. trigger .. " | " .. table.concat(notes, " | ")
   ns.db.probe = ns.db.probe or {}
-  ns.db.probe.recipes = probe
+  -- Changed 2026-10-12 (beta run 5): keep the last eight, not just the last. The one line that
+  -- survived was written by a timer a second before /reload, not by the command the user typed.
+  -- ns.db.probe.recipes = probe
+  local history = type(ns.db.probe.recipes) == "table" and ns.db.probe.recipes or {}
+  history[#history + 1] = probe
+  while #history > 8 do table.remove(history, 1) end
+  ns.db.probe.recipes = history
   return probe
 end
 

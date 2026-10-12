@@ -16,7 +16,7 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T9 | Inventory and own-auctions snapshot | Beta | ⚠️ 2026-10-12 — bags correct, bank read (it was empty), query does not disturb the scan; a live auction still not captured (fixed in v0.10.1, untested) |
 | T10 | Log window, button, several characters | Beta | ✅ 2026-10-12 for the window and minimap button (user: "window works nice"); second character not tested |
 | T15 | Vendor prices recorded at the vendor | Beta | ✅ 2026-10-12 — 131 items from six vendors, Coarse Thread 10c |
-| T13 | Recipes read from the profession window | Beta | ❌ 2026-10-12 — nothing saved and no error with Tailoring and Enchanting; v0.10.1 adds a probe and the Classic APIs, one more run needed |
+| T13 | Recipes read from the profession window | Beta | ⚠️ 2026-10-12 — the API works (261 recipes, 5 learned) but the profession name came back empty and the result was dropped; fixed in v0.10.2, one more run needed |
 | T14 | Disenchant results logged | Beta | ✅ 2026-10-12 — Copper Chain Belt → 1 Strange Dust, with quality and level |
 | T12 | In-game plan and tooltip lines | Beta | ✅ 2026-10-12 — the user sees the Plan tab and the three tooltip lines |
 | T11 | Item reference: names and vendor prices | Beta | ✅ 2026-10-12 — 3,167 items after two scans with the repeat pass (the last scan had 3,102) |
@@ -198,6 +198,15 @@ The user, now with Tailoring and Enchanting, ran the list: Plan tab and tooltips
 - **T13 failed quietly:** nothing under `recipes`, no error. The modern reader returns without a word when the profession has no name, the recipe list is empty, or nothing is marked learned — so the cause is unknown. v0.10.1 writes what each API answered to `probe.recipes`, tries the Classic trade skill and craft APIs too, reads at once as well as a second later, and has `/fah recipes` to read on demand.
 
 Next: `/reload`, open the Tailoring window, type `/fah recipes` while it is open, then the same for Enchanting, `/reload`.
+
+## Run 5 — 2026-10-12 19:22, addon v0.10.1
+
+The probe answered the recipe question: `modern: profession= id=0 recipes=261 learned=5 | classic: no API | craft: no API`, and the events `TRADE_SKILL_UPDATE`, `CRAFT_SHOW`, `CRAFT_UPDATE` do not exist in this client.
+
+- Forever uses the **Mainline profession API**; the Classic trade skill and craft APIs are not there.
+- The recipes were being read all along (261 in the list, 5 learned). They were thrown away because the profession had no name: the child-profession call answers with an empty record in Forever, and since that record is not nil the base profession was never asked.
+- v0.10.2: child if it has a name, else base, else the profession of a learned recipe, else a placeholder key — recipes are saved either way. The probe keeps its last eight lines.
+- Only one probe line survived (written by a timer a second before `/reload`), so whether the base call has the name is still to be seen.
 
 ## T9 — Inventory and own auctions
 
