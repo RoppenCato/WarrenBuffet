@@ -16,7 +16,7 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T9 | Inventory and own-auctions snapshot | Beta | ⚠️ 2026-10-12 — bags correct, bank read (it was empty), query does not disturb the scan; a live auction still not captured (fixed in v0.10.1, untested) |
 | T10 | Log window, button, several characters | Beta | ✅ 2026-10-12 for the window and minimap button (user: "window works nice"); second character not tested |
 | T15 | Vendor prices recorded at the vendor | Beta | ✅ 2026-10-12 — 131 items from six vendors, Coarse Thread 10c |
-| T13 | Recipes read from the profession window | Beta | ⚠️ 2026-10-12 — the API works (261 recipes, 5 learned) but the profession name came back empty and the result was dropped; fixed in v0.10.2, one more run needed |
+| T13 | Recipes read from the profession window | Beta | ✅ 2026-10-12 — Tailoring and Enchanting saved, 5 recipes each, materials and outputs right |
 | T14 | Disenchant results logged | Beta | ✅ 2026-10-12 — Copper Chain Belt → 1 Strange Dust, with quality and level |
 | T12 | In-game plan and tooltip lines | Beta | ✅ 2026-10-12 — the user sees the Plan tab and the three tooltip lines |
 | T11 | Item reference: names and vendor prices | Beta | ✅ 2026-10-12 — 3,167 items after two scans with the repeat pass (the last scan had 3,102) |
@@ -207,6 +207,14 @@ The probe answered the recipe question: `modern: profession= id=0 recipes=261 le
 - The recipes were being read all along (261 in the list, 5 learned). They were thrown away because the profession had no name: the child-profession call answers with an empty record in Forever, and since that record is not nil the base profession was never asked.
 - v0.10.2: child if it has a name, else base, else the profession of a learned recipe, else a placeholder key — recipes are saved either way. The probe keeps its last eight lines.
 - Only one probe line survived (written by a timer a second before `/reload`), so whether the base call has the name is still to be seen.
+
+## Run 6 — 2026-10-12 19:25, addon v0.10.2
+
+- **T13 passes.** Both professions saved: Tailoring (skill 1/75) with Bolt of Linen Cloth, Linen Bag, Linen Cloak, Simple Linen Pants, Brown Linen Shirt; Enchanting (2/75) with Dust to Motes, Runed Copper Rod, two bracer enchants and Novice's Practice Wand. Materials match what Classic players know (a Linen Bag is 3 bolts and 3 Coarse Thread). Two are new in Forever: Dust to Motes (1 Strange Dust → 3 Mote of Magic) and Novice's Practice Wand.
+- The probe shows the name comes from the base profession call (`Tailoring (from base) id=197`, `Enchanting … id=333`), and from a learned recipe once the window is closing.
+- When the second window opened, the first event still carried the previous profession's list (471 recipes under Enchanting for a moment). The final state was right; v0.10.3 skips an attempt whose recipes belong to another profession than the window.
+- With the real recipes the Craft section works end to end: Bolt of Linen Cloth from the 20 Linen held (4s 75c as bolts against 3s 23c raw), Brown Linen Shirt +1s 30c, Linen Bag +1s 05c. Coarse Thread is priced at the vendor's 10c from the vendor log, not the 15c someone lists it for.
+- Finding: a vendor pays 2s for a Linen Bag that costs 1s 80c to make. The planner now treats what a vendor pays as an outlet and says so.
 
 ## T9 — Inventory and own auctions
 

@@ -79,8 +79,20 @@ local function ReadModern()
   --   tostring(prof and prof.professionID), #ids, #out)
   -- if not profession or profession == "" then return nil, nil, nil, {}, note end
   -- return profession, prof.skillLevel, prof.maxSkillLevel, out, note
+  -- Added 2026-10-12 (beta run 6): when a second profession window opens, the first event still
+  -- carries the previous profession's recipe list (471 recipes under "Enchanting" for a moment).
+  -- If the recipes say they belong to another profession than the window, skip this attempt;
+  -- the list update that follows has the right one.
+  local owner = firstLearned and Named(T.GetProfessionInfoByRecipeID and T.GetProfessionInfoByRecipeID(firstLearned))
+  local function Top(info)
+    return (info.parentProfessionName and info.parentProfessionName ~= "" and info.parentProfessionName) or info.professionName
+  end
+  if prof and owner and Top(prof) ~= Top(owner) then
+    return nil, nil, nil, {}, ("modern: window is %s but the list is still %s's (%d recipes)"):format(Top(prof), Top(owner), #ids)
+  end
   if not prof and firstLearned then
-    source, prof = "recipe", Named(T.GetProfessionInfoByRecipeID and T.GetProfessionInfoByRecipeID(firstLearned))
+    -- source, prof = "recipe", Named(T.GetProfessionInfoByRecipeID and T.GetProfessionInfoByRecipeID(firstLearned))
+    source, prof = "recipe", owner
   end
   local profession = prof and ((prof.parentProfessionName and prof.parentProfessionName ~= "" and prof.parentProfessionName)
     or prof.professionName)

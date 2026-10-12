@@ -480,6 +480,10 @@ def test_profession_name_comes_from_whoever_has_one():
     assert professions == {"Profession 3915"} and "(from none)" in probe   # nobody has it: still saved
     assert game.db()["errors"] == {}
 
+    # Beta run 6: the Enchanting window opens while the list is still Tailoring's - not saved.
+    _, professions, probe = tailor(PROFESSION={"professionName": "Enchanting"}, RECIPE_PROFESSION={"professionName": "Tailoring"})
+    assert professions == set() and "window is Enchanting but the list is still Tailoring's" in probe
+
 
 CLASSIC_API = """
 local skills = {

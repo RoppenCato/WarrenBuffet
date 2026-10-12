@@ -227,7 +227,13 @@ def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=N
                 break
         if unknown:
             continue
-        revenue = price * made * (1 - analytics.AH_CUT)
+        # Changed 2026-10-12: a vendor is an outlet too. The first real recipes showed a Linen Bag
+        # costing 1s 80c to make and vendoring for 2s - a floor under the craft, and for some
+        # products more than the AH leaves.
+        # revenue = price * made * (1 - analytics.AH_CUT)
+        pays = (vendor.get(r["item_id"]) or 0) * made
+        to_vendor = pays > price * made * (1 - analytics.AH_CUT)
+        revenue = max(pays, price * made * (1 - analytics.AH_CUT))
         profit = revenue - cost
         can_make = min(holdings.get(item_id, 0) // qty for item_id, qty in r["reagents"].items())
         # Two ways to qualify. Buying the materials: a real margin per craft. Or you already hold
@@ -242,6 +248,10 @@ def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=N
         left = max(0, r["cooldown"] - ((now or r["ts"]) - r["ts"]))
         sold = sold_per_day.get(r["item_id"]) or 0
         why = f"Materials cost {money(cost)} a craft; it lists at {money(price)}" + (f" x{made:g}" if made != 1 else "") + "."
+        if to_vendor:
+            why += f" Sell it to a vendor: {money(pays)}, more than the AH would leave."
+        elif pays > cost:
+            why += f" Even sold to a vendor it clears its materials by {money(pays - cost)}."
         if can_make:
             why += (f" You hold materials for {can_make}: crafted they bring {money(revenue * can_make)}, "
                     f"sold as they are {money(raw * can_make)}.")
@@ -252,7 +262,7 @@ def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=N
         if left:
             why += f" Timed craft: ready in {left / 3600:.1f} h."
         out.append({"item_id": r["item_id"], "recipe": r["name"], "profession": r["profession"], "char": r["char"],
-                    "units": can_make, "price": price, "cost": cost, "profit": profit, "raw": raw,
+                    "units": can_make, "price": price, "cost": cost, "profit": profit, "raw": raw, "to_vendor": to_vendor,
                     "estimated": bool(guessed), "ready_in": left, "why": why})
     return sorted(out, key=lambda d: (d["units"] == 0, -d["profit"]))
 

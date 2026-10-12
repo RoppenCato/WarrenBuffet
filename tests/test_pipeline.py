@@ -134,6 +134,12 @@ def test_craft_margins():
     priced = planner.craft(bag, books, charges={2320: 10})[0]              # the vendor sells it for 10c
     assert priced["cost"] == 300 + 3 * 10 and priced["estimated"] is False
 
+    # Added 2026-10-12: what a vendor pays for the product is a floor, and sometimes the better outlet.
+    floor = planner.craft(bag, books, vendor={4238: 400}, charges={2320: 10})[0]
+    assert floor["to_vendor"] is False and "Even sold to a vendor it clears its materials by 70c" in floor["why"]
+    better = planner.craft(bag, books, vendor={4238: 650}, charges={2320: 10})[0]
+    assert better["to_vendor"] is True and better["profit"] == 650 - 330 and "Sell it to a vendor: 6s 50c" in better["why"]
+
 
 def test_vendor_flips():
     vendors = {
