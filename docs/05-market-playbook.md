@@ -42,6 +42,7 @@ Lessons from Classic 2019, Season of Mastery, Season of Discovery, Hardcore and 
 - 2019 reference: flasks 60–80g (Feb 2020) → 90–240g (Mar 2020) as BWL raiding grew.
 - Forever: recipes/cooldowns may differ — verify each in game.
 - **Signals:** `craft_margin` = product median × (1 − AH cut) − Σ reagent min price; `cooldown_ready` from ledger.
+- **As built 2026-10-12 (D42):** a material you can make yourself is costed at what making it costs, when that is cheaper than buying it. The Today page also lists the cheapest skill points per profession.
 - **As built 2026-10-11 (D37):** `craft_margin` uses the product's *cheapest* listing, not its median, and there is a second test for materials you already hold: craft them only if that beats selling them raw. Timed crafts show the time left as read from the profession window.
 
 ## 4. Weekly cycle (once raids exist)

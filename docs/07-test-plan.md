@@ -20,6 +20,8 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T14 | Disenchant results logged | Beta | ✅ 2026-10-12 — Copper Chain Belt → 1 Strange Dust, with quality and level |
 | T12 | In-game plan and tooltip lines | Beta | ✅ 2026-10-12 — the user sees the Plan tab and the three tooltip lines |
 | T11 | Item reference: names and vendor prices | Beta | ✅ 2026-10-12 — 3,167 items after two scans with the repeat pass (the last scan had 3,102) |
+| T16 | Another addon's full scan is saved too | Beta | ⏳ — optional, needs a second scanning addon installed |
+| T17 | Recipe colour saved; cheapest skill points | Beta | ⏳ — open both profession windows once with v0.11 |
 
 ## T1 — AHledger API ✅
 
@@ -260,6 +262,23 @@ Run, on a character with a crafting profession and a few recipes: `/reload`, ope
 - Check in the file: `recipes[char][profession]` lists the learned recipes with the right output item and materials (compare two with the game); `errors` has no `recipes` line.
 - Pass: the recipes are there and right. Then Refresh the dashboard: the Craft section lists what clears its materials cost.
 - If `errors` says the recipe functions are missing, this client uses another profession API and the module needs rewriting — send the line.
+
+## T17 — Recipe colour and skill points
+
+Added 2026-10-12 with addon v0.11 (D42). Only run offline so far.
+
+Run: `/reload`, open each profession window for two seconds, `/reload`. Then Refresh the dashboard.
+- Check in the file: each recipe line has a number before the name — 0 orange, 1 yellow, 2 green, 3 grey. Compare two with the colours in the profession window.
+- Pass: the colours match, and the Today page shows "Cheapest skill points" under Craft.
+- If every recipe says -1, Forever does not fill `relativeDifficulty`; the list stays hidden and the colour has to come from somewhere else.
+
+## T16 — Shared scan
+
+Added 2026-10-12 with addon v0.11 (D41). Only run offline so far. Optional: it needs Auctionator or CraftProfit installed next to ours.
+
+Run: open the AH and let our scan finish. Keep the AH open for 16 minutes, then press the other addon's full-scan button.
+- Pass: the Log tab says "Another addon scanned the auction house - saving its result too", then "Scan saved"; the file has a second scan with `via = "other"`, and no third one however long the AH stays open.
+- Also worth one look: with both addons installed, opening the AH still gives each of them its data.
 
 ## T14 — Disenchant log
 

@@ -33,6 +33,7 @@ Optional: if Auctionator is installed, read its prices through its public API fo
   - Very large replicates have caused disconnects historically; process in chunks across frames (`C_Timer.After(0, ...)`), e.g. 5–10k rows per frame.
   - Throttle is account-wide — alts share it.
   - Closing the AH before the scan finishes drops it (and still uses up the throttle). No reply in 120 s → dropped.
+  - **Shared scan (v0.11, D41).** The 15 minutes are per account, across every addon — Auctionator and CraftProfit use the same call. A list that arrives while we are idle, with the AH open and no scan of our own in the last 15 minutes, is saved too, with `via = "other"` in the header. A row count and three rows identify a list, so the list we already read is never saved a second time, however long the AH stays open. The same path saves a reply that took longer than 120 s. Not seen in game yet (T16).
 - Output per scan (SavedVariables): header (scan_id, house, unix time, n) + compact string rows `itemID,count,buyout,minBid,bid;...`, plus a per-item aggregate block computed in Lua (min, p10, p25, median, qty, auctions). See [04](04-data-storage.md).
   - v0.1 header: `id` (`ts:realm:faction`), `ts` (server time), `realm`, `faction`, `region`, `zone`, `n` (reported), `rows` (saved), `items`, `units`, `miss`, `skip`, `waitSec`, `procSec`, `frames`, `maxMs`, `tl`. House id is derived in the pipeline (D12).
   - Aggregates are strings too: `itemID,min,p10,p25,median,qty,auctions;`. Definition in D10 and the `Scanner.lua` header.
@@ -84,6 +85,8 @@ Added 2026-10-11 (D31). After each scan the addon records every item the client 
 ### Recipes
 
 Added 2026-10-11 (addon v0.9, D37). When a profession window is open the addon saves the learned recipes: `ForeverAHDB.recipes[char][profession] = { ts, skill, max, list }`, one line per recipe, `recipeID⇥outputItemID⇥min⇥max⇥cooldownSeconds⇥reagentID:qty,…⇥name`.
+
+Changed 2026-10-12 (v0.11, D42): a `difficulty` field sits before the name — `…⇥reagentID:qty,…⇥difficulty⇥name` — 0 orange, 1 yellow, 2 green, 3 grey, -1 unknown (`relativeDifficulty` from `GetRecipeInfo`). Lists saved by older versions have seven fields and parse as -1. The planner uses it for the cheapest skill points. Whether Forever fills the field is T17.
 
 - From `C_TradeSkillUI`: `GetAllRecipeIDs`, `GetRecipeInfo` (`learned`), `GetRecipeSchematic` (output item, quantity, reagent slots), `GetRecipeCooldown`. Only the basic (fixed) reagents are kept.
 - A linked or guild profession window is ignored. If the functions are missing in this client, one error is saved and the module stays quiet.
