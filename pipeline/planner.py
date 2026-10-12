@@ -30,6 +30,10 @@ MIN_CRAFT_RETURN = 0.15                 # profit over materials cost
 MIN_STOCK_GAIN = 100                    # copper: crafting what you hold must beat selling it raw by this much
 VENDOR_MARKUP = 4                       # vendors usually charge 4x what they pay; only used for a material
                                         # that is not on the AH, and flagged as an estimate when it is
+MAX_CRAFT_STEPS = 3                     # how deep "make the material yourself" may go (added 2026-10-12)
+# Chance that a craft gives a skill point, by recipe colour: orange always; yellow and green are
+# rough Classic figures, not measured in Forever (added 2026-10-12).
+SKILL_CHANCE = {0: 1.0, 1: 0.75, 2: 0.25}
 
 
 def sell(holdings: dict[int, int], books, ahl, phase: str | None = None) -> list[dict]:
@@ -187,10 +191,82 @@ def vendor_flips(vendors: dict, books, sold_per_day=None, balance: int = 0, limi
     return out[:limit]
 
 
+def _pricer(recipes: list[dict], books, vendor: dict, charges: dict):
+    """unit_cost(item_id) -> (copper, how) for the cheapest way to get one unit of a material, or
+    None if it cannot be priced. how: "ah" (cheapest listing), "vendor" (what a vendor charges),
+    "craft" (made with a recipe one of the characters knows, its own materials priced the same
+    way, up to MAX_CRAFT_STEPS deep), "guess" (not on the AH: VENDOR_MARKUP x its vendor value).
+    Added 2026-10-12: the sub-recipe step is taken from how ForeverProfit costs a craft - a Linen
+    Bag made from bought bolts costs 1s 80c, from Linen Cloth turned into bolts 1s 32c."""
+    by_output = {}
+    for r in recipes:
+        if r["item_id"] and r["reagents"]:
+            by_output.setdefault(r["item_id"], r)
+    memo = {}
+
+    def unit_cost(item_id, trail=()):
+        if not trail and item_id in memo:
+            return memo[item_id]
+        options = []
+        if books.get(item_id):
+            options.append((books[item_id][0][0], "ah"))
+        if item_id in charges:
+            options.append((charges[item_id], "vendor"))
+        recipe = by_output.get(item_id)
+        if recipe and len(trail) < MAX_CRAFT_STEPS and item_id not in trail:
+            parts = [(unit_cost(i, trail + (item_id,)), qty) for i, qty in recipe["reagents"].items()]
+            if all(part for part, _ in parts):
+                made = (recipe["qty_min"] + recipe["qty_max"]) / 2
+                options.append((sum(part[0] * qty for part, qty in parts) / made, "craft"))
+        if not options and vendor.get(item_id):
+            options.append((vendor[item_id] * VENDOR_MARKUP, "guess"))
+        best = min(options, key=lambda option: option[0]) if options else None
+        if not trail:
+            memo[item_id] = best
+        return best
+
+    return unit_cost
+
+
+def skillups(recipes: list[dict], books, vendor=None, charges=None, limit: int = 5) -> list[dict]:
+    """Cheapest skill points per character and profession (added 2026-10-12; both ForeverProfit and
+    CraftProfit have a leveling list, and levelling professions is most of the first weeks).
+    Net cost of a craft = materials minus what the result brings at the better of AH and vendor;
+    per point = that over the chance of a point for its colour. A craft that pays for itself is
+    free (0) - those come first, the surest colour first, since a green one needs four times the
+    crafts and four times the buyers."""
+    vendor, charges = vendor or {}, charges or {}
+    unit_cost = _pricer(recipes, books, vendor, charges)
+    groups: dict[tuple, list] = {}
+    for r in recipes:
+        chance = SKILL_CHANCE.get(r.get("difficulty", -1))
+        if not chance or not r["reagents"]:
+            continue
+        parts = [(unit_cost(i), qty) for i, qty in r["reagents"].items()]
+        if not all(part for part, _ in parts):
+            continue
+        cost = sum(part[0] * qty for part, qty in parts)
+        made = (r["qty_min"] + r["qty_max"]) / 2
+        book = books.get(r["item_id"]) if r["item_id"] else None
+        ah = book[0][0] * made * (1 - analytics.AH_CUT) if book else 0
+        pays = (vendor.get(r["item_id"]) or 0) * made
+        back = max(ah, pays)
+        groups.setdefault((r["char"], r["profession"]), []).append({
+            "char": r["char"], "profession": r["profession"], "skill": r["skill"], "recipe": r["name"],
+            "item_id": r["item_id"], "difficulty": r["difficulty"], "cost": cost, "back": back,
+            "outlet": "nothing to sell" if not back else "vendor" if pays >= ah else "AH",
+            "net": cost - back, "chance": chance, "per_point": max(cost - back, 0) / chance})
+    out = []
+    for key in sorted(groups):
+        out += sorted(groups[key], key=lambda d: (d["per_point"], -d["chance"], d["net"]))[:limit]
+    return out
+
+
 # def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=None, now: int | None = None) -> list[dict]:
 # (2026-10-11, v0.10: `charges` = what vendors charge per unit, from the vendor log)
+# (2026-10-12: `names` = item names for the wording; materials are priced by _pricer above)
 def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=None, now: int | None = None,
-          charges=None) -> list[dict]:
+          charges=None, names=None) -> list[dict]:
     """Recipes worth crafting for sale (playbook 3, craft_margin).
 
     Per craft: the product at the cheapest listing (it has to undercut that to sell), minus the AH
@@ -200,6 +276,8 @@ def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=N
     `raw` is what the same materials would bring if sold as they are - the question a gatherer
     actually has. Recipes several characters know are listed once."""
     vendor, holdings, sold_per_day, charges = vendor or {}, holdings or {}, sold_per_day or {}, charges or {}
+    names = names or {}
+    unit_cost = _pricer(recipes, books, vendor, charges)
     money, out, seen = analytics.money, [], set()
     for r in recipes:
         book = books.get(r["item_id"])
@@ -207,24 +285,43 @@ def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=N
             continue
         made = (r["qty_min"] + r["qty_max"]) / 2
         price = book[0][0]
-        cost, raw, guessed, unknown = 0, 0, [], False
+        # Changed 2026-10-12: every material is priced the cheapest way - AH, vendor, or made with
+        # another recipe (see _pricer). The loop below replaced this one:
+        # cost, raw, guessed, unknown = 0, 0, [], False
+        # for item_id, qty in r["reagents"].items():
+        #     material = books.get(item_id)
+        #     if item_id in charges and (not material or charges[item_id] <= material[0][0]):
+        #         cost += charges[item_id] * qty
+        #         raw += charges[item_id] * qty
+        #     elif material:
+        #         cost += material[0][0] * qty
+        #         raw += material[0][0] * qty * (1 - analytics.AH_CUT)
+        #     elif vendor.get(item_id):
+        #         cost += vendor[item_id] * VENDOR_MARKUP * qty
+        #         guessed.append(item_id)
+        #     else:
+        #         unknown = True
+        #         break
+        # if unknown:
+        #     continue
+        cost, raw, guessed, homemade, unknown = 0, 0, [], [], False
         for item_id, qty in r["reagents"].items():
-            material = books.get(item_id)
-            # Added 2026-10-11 (v0.10): a material a vendor sells is worth what the vendor charges,
-            # even when someone lists it on the AH for more. It is never "sold raw", so it counts
-            # the same on both sides.
-            if item_id in charges and (not material or charges[item_id] <= material[0][0]):
-                cost += charges[item_id] * qty
-                raw += charges[item_id] * qty
-            elif material:
-                cost += material[0][0] * qty
-                raw += material[0][0] * qty * (1 - analytics.AH_CUT)
-            elif vendor.get(item_id):
-                cost += vendor[item_id] * VENDOR_MARKUP * qty
-                guessed.append(item_id)
-            else:
+            priced = unit_cost(item_id)
+            if not priced:
                 unknown = True
                 break
+            each, how = priced
+            listed = books.get(item_id)
+            cost += each * qty
+            if how == "ah":
+                raw += each * qty * (1 - analytics.AH_CUT)
+            elif how == "craft":   # held as it is, it would sell at its own AH price
+                raw += (listed[0][0] * (1 - analytics.AH_CUT) if listed else each) * qty
+                homemade.append((item_id, each, listed[0][0] if listed else None))
+            else:                  # vendor-bought or guessed: never "sold raw", same on both sides
+                raw += each * qty
+            if how == "guess":
+                guessed.append(item_id)
         if unknown:
             continue
         # Changed 2026-10-12: a vendor is an outlet too. The first real recipes showed a Linen Bag
@@ -238,8 +335,8 @@ def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=N
         can_make = min(holdings.get(item_id, 0) // qty for item_id, qty in r["reagents"].items())
         # Two ways to qualify. Buying the materials: a real margin per craft. Or you already hold
         # them: then the question is only whether the product beats selling them as they are.
-        if guessed:
-            raw += sum(vendor[i] * VENDOR_MARKUP * r["reagents"][i] for i in guessed)
+        # if guessed:   (2026-10-12: the loop above already counts guessed materials on both sides)
+        #     raw += sum(vendor[i] * VENDOR_MARKUP * r["reagents"][i] for i in guessed)
         worth_buying = profit >= MIN_CRAFT_PROFIT and profit >= cost * MIN_CRAFT_RETURN
         worth_from_stock = can_make > 0 and (revenue - raw) * can_make >= MIN_STOCK_GAIN and revenue >= raw * (1 + MIN_CRAFT_RETURN)
         if not (worth_buying or worth_from_stock):
@@ -248,6 +345,10 @@ def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=N
         left = max(0, r["cooldown"] - ((now or r["ts"]) - r["ts"]))
         sold = sold_per_day.get(r["item_id"]) or 0
         why = f"Materials cost {money(cost)} a craft; it lists at {money(price)}" + (f" x{made:g}" if made != 1 else "") + "."
+        for item_id, each, listed in homemade:   # added 2026-10-12
+            label = names.get(item_id, f"item {item_id}")
+            why += (f" Costed with {label} made yourself: {money(each)} each"
+                    + (f" instead of {money(listed)} on the AH." if listed else "."))
         if to_vendor:
             why += f" Sell it to a vendor: {money(pays)}, more than the AH would leave."
         elif pays > cost:

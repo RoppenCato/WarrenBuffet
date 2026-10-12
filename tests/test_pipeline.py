@@ -141,6 +141,46 @@ def test_craft_margins():
     assert better["to_vendor"] is True and better["profit"] == 650 - 330 and "Sell it to a vendor: 6s 50c" in better["why"]
 
 
+# Added 2026-10-12: two ideas taken from ForeverProfit and CraftProfit.
+def test_materials_you_can_make_and_cheapest_skill_points():
+    def recipe(recipe_id, name, item_id, reagents, difficulty=-1, made=1):
+        return {"char": "Tailor-R", "profession": "Tailoring", "skill": 40, "ts": 1000, "recipe_id": recipe_id, "name": name,
+                "item_id": item_id, "qty_min": made, "qty_max": made, "cooldown": 0, "reagents": reagents, "difficulty": difficulty}
+
+    bolt = recipe(2963, "Bolt of Linen Cloth", 2996, {2589: 2}, difficulty=3)
+    bag = recipe(3915, "Linen Bag", 4238, {2996: 3, 2320: 3}, difficulty=0)
+    shirt = recipe(3914, "Brown Linen Shirt", 4344, {2996: 1, 2320: 1}, difficulty=1)
+    cloak = recipe(2387, "Linen Cloak", 2570, {2996: 1, 2320: 1}, difficulty=2)
+    books = {2589: [(18, 9000)], 2996: [(50, 900)], 4238: [(300, 30)], 4344: [(200, 5)], 2570: [(40, 9)]}
+    charges, names = {2320: 10}, {2996: "Bolt of Linen Cloth"}
+
+    # The bolts are costed as made from cloth (2 x 18c) when the recipe is known, not bought at 50c.
+    bought = planner.craft([bag], books, charges=charges)[0]
+    assert bought["cost"] == 3 * 50 + 3 * 10
+    made = planner.craft([bag, bolt], books, charges=charges, names=names)[0]
+    assert made["recipe"] == "Linen Bag" and made["cost"] == 3 * 36 + 3 * 10
+    assert "Costed with Bolt of Linen Cloth made yourself: 36c each instead of 50c on the AH." in made["why"]
+    assert made["raw"] == 3 * 50 * 0.95 + 3 * 10        # bolts you hold would still sell at the bolt price
+
+    # Dearer to make than to buy: bought. A recipe that needs its own product: no endless loop.
+    assert planner.craft([bag, bolt], {**books, 2589: [(40, 9000)]}, charges=charges)[0]["cost"] == 3 * 50 + 3 * 10
+    loop = [recipe(1, "A from B", 101, {102: 1}), recipe(2, "B from A", 102, {101: 1}), recipe(3, "C", 103, {101: 1})]
+    assert planner.craft(loop, {103: [(5000, 3)]}) == []
+
+    # Cheapest skill points: net cost of a craft over the chance of a point for its colour.
+    points = planner.skillups([bolt, bag, shirt, cloak], books, vendor={4238: 200}, charges=charges)
+    # Crafts that pay for themselves are free, surest colour first; grey gives no points at all.
+    assert [p["recipe"] for p in points] == ["Linen Bag", "Brown Linen Shirt", "Linen Cloak"]
+    bag_row, shirt_row, cloak_row = points
+    assert (bag_row["cost"], bag_row["back"], bag_row["outlet"]) == (138, 300 * 0.95, "AH")
+    assert (bag_row["net"], bag_row["per_point"]) == (138 - 285, 0)            # orange, and it pays
+    assert (shirt_row["net"], shirt_row["per_point"]) == (46 - 190, 0)         # yellow, and it pays
+    assert (cloak_row["net"], cloak_row["per_point"]) == (46 - 38, 8 / 0.25)   # green: 8c a craft, 1 point in 4
+    vendored = planner.skillups([bag], {**books, 4238: [(150, 30)]}, vendor={4238: 200}, charges=charges)[0]
+    assert (vendored["back"], vendored["outlet"]) == (200, "vendor")
+    assert planner.skillups([recipe(3915, "Linen Bag", 4238, {2996: 3, 2320: 3})], books, charges=charges) == []   # colour unknown
+
+
 def test_vendor_flips():
     vendors = {
         1: {"price": 2000, "stack": 1, "available": 2, "vendor": "Bliztik", "zone": "Booty Bay"},     # limited recipe

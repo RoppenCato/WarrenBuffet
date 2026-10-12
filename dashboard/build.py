@@ -189,7 +189,11 @@ def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None =
     # adds things worth buying from a vendor to resell. Not in launch week, which stays strict.)
     vendor_log = savedvars.vendors(db)
     charges = {i: v["price"] for i, v in vendor_log.items() if v["available"] < 0}
-    crafts = planner.craft(savedvars.recipes(db), book, vendor, dict(holdings), sold, now=int(time.time()), charges=charges)
+    # crafts = planner.craft(savedvars.recipes(db), book, vendor, dict(holdings), sold, now=int(time.time()), charges=charges)
+    # (2026-10-12: item names for the wording, and the cheapest skill points per profession)
+    known_recipes = savedvars.recipes(db)
+    crafts = planner.craft(known_recipes, book, vendor, dict(holdings), sold, now=int(time.time()), charges=charges, names=names)
+    skillups = planner.skillups(known_recipes, book, vendor, charges)
     wanted += [d["item_id"] for d in crafts]
     if not launch:
         buys = sorted(buys + planner.vendor_flips(vendor_log, book, sold, budget), key=lambda d: (not d["affordable"], -d["profit"]))[:8]
@@ -380,6 +384,13 @@ def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None =
                       where=", ".join(where.get(r["item_id"], []))) for r in sells],
         # Crafting (added 2026-10-11, v0.9)
         "has_recipes": bool(db.get("recipes")),
+        # Cheapest skill points (added 2026-10-12)
+        "skillups": [{"who": f"{d['profession']} ({d['char'].split('-')[0]}, skill {d['skill']})", "recipe": d["recipe"],
+                      "colour": {0: "orange", 1: "yellow", 2: "green"}[d["difficulty"]], "cost": money(d["cost"]),
+                      "back": money(d["back"]) if d["back"] else "-", "outlet": d["outlet"],
+                      "net": ("gains " + money(-d["net"])) if d["net"] < 0 else ("costs " + money(d["net"])),
+                      "per_point": money(d["per_point"]) if d["per_point"] else "free"}
+                     for d in skillups],
         "crafts": [row(d, "craft", made_by=f"{d['profession']} ({d['char'].split('-')[0]})", price=money(d["price"]),
                        cost=money(d["cost"]), profit=money(d["profit"]), estimated=d["estimated"]) for d in crafts[:12]],
         # Launch week mode (added 2026-10-11)

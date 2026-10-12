@@ -98,6 +98,16 @@
     </table></div>
     <p class="note">Each post still costs a deposit of at least 1s. "est." means a material is not on the AH and was priced at four times its vendor value.</p>
     {% endif %}
+    {% if skillups %}
+    <h3 style="font-size:15px;margin:18px 0 2px">Cheapest skill points</h3>
+    <p class="why">For levelling a profession: what a craft costs after you sell or vendor the result, per skill point it is likely to give.</p>
+    <div class="scroll"><table>
+      <tr><th>Profession</th><th>Recipe</th><th>Colour</th><th class="num">Materials</th><th class="num">You get back</th><th>Sell to</th><th class="num">A craft</th><th class="num">Per skill point</th></tr>
+      {% for r in skillups %}<tr><td>{{ r.who }}</td><td>{{ r.recipe }}</td><td>{{ r.colour }}</td><td class="num">{{ r.cost }}</td>
+        <td class="num">{{ r.back }}</td><td>{{ r.outlet }}</td><td class="num">{{ r.net }}</td><td class="num">{{ r.per_point }}</td></tr>{% endfor %}
+    </table></div>
+    <p class="note">Orange recipes always give a point. Yellow is counted as 3 in 4 and green as 1 in 4 - rough Classic figures, not measured in Forever.</p>
+    {% endif %}
   </section>
 
   <section class="card">
