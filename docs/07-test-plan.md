@@ -10,16 +10,16 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T3 | `ReplicateItems` full scan works in Forever client | Beta | ✅ 2026-10-11 |
 | T4 | SavedVariables size, write on logout, Python parse | Beta | ✅ 2026-10-11 |
 | T5 | Commodities included in replicate? AH type? | Beta | ✅ 2026-10-11 — included; deposit is at least 1s per post; neutral cut still open |
-| T6 | Ledger captures post/sold/bought/expired | Beta | ⚠️ 2026-10-11 — post, cancel, bought, cancelled, expired correct; sold and the money rows not seen yet |
+| T6 | Ledger captures post/sold/bought/expired | Beta | ⚠️ 2026-10-12 — post, cancel, bought, cancelled, expired and the money rows correct; only `sold` not seen yet |
 | T7 | Own scan vs AHledger agree on same hour | Beta/launch | ✅ 2026-10-11 — medians within 2 %, mins within 1 copper, 6 min apart |
 | T8 | Scheduled hourly pull runs unattended for 48h | PC | ⏳ — scheduled 2026-10-11 18:21, first run ok; check the log on 2026-10-13 evening |
-| T9 | Inventory and own-auctions snapshot | Beta | ⚠️ 2026-10-11 — bags correct, own-auctions query works and does not disturb the scan; bank and a live auction not tested |
-| T10 | Log window, button, several characters | Beta | ⚠️ 2026-10-11 — window built, button moved and remembered, no errors; second character not tested |
-| T15 | Vendor prices recorded at the vendor | Beta | ⏳ before Oct 22 — addon v0.10 ready 2026-10-11 |
-| T13 | Recipes read from the profession window | Beta | ⏳ before Oct 22 — addon v0.9 ready 2026-10-11; needs a character with a crafting profession |
-| T14 | Disenchant results logged | Beta | ⏳ before Oct 22 — addon v0.9 ready 2026-10-11; needs an enchanter and one green item |
-| T12 | In-game plan and tooltip lines | Beta | ⏳ before Oct 22 — addon v0.8 ready 2026-10-11 |
-| T11 | Item reference: names and vendor prices | Beta | ⚠️ 2026-10-11 — works, but one scan gave only 30 % of items; v0.6.1 looks again later, needs one more scan |
+| T9 | Inventory and own-auctions snapshot | Beta | ⚠️ 2026-10-12 — bags correct, bank read (it was empty), query does not disturb the scan; a live auction still not captured (fixed in v0.10.1, untested) |
+| T10 | Log window, button, several characters | Beta | ✅ 2026-10-12 for the window and minimap button (user: "window works nice"); second character not tested |
+| T15 | Vendor prices recorded at the vendor | Beta | ✅ 2026-10-12 — 131 items from six vendors, Coarse Thread 10c |
+| T13 | Recipes read from the profession window | Beta | ❌ 2026-10-12 — nothing saved and no error with Tailoring and Enchanting; v0.10.1 adds a probe and the Classic APIs, one more run needed |
+| T14 | Disenchant results logged | Beta | ✅ 2026-10-12 — Copper Chain Belt → 1 Strange Dust, with quality and level |
+| T12 | In-game plan and tooltip lines | Beta | ✅ 2026-10-12 — the user sees the Plan tab and the three tooltip lines |
+| T11 | Item reference: names and vendor prices | Beta | ✅ 2026-10-12 — 3,167 items after two scans with the repeat pass (the last scan had 3,102) |
 
 ## T1 — AHledger API ✅
 
@@ -181,6 +181,23 @@ The user opened the AH (scan) and emptied the mailbox, then reloaded. Read from 
 Still open before Oct 22: one more scan with v0.6.1 (item coverage), one post of a stack of two or more (money rows, own-auction price), the bank opened once.
 
 User feedback on run 3: it worked, but the window was behind the auction house window; a minimap button and a nicer look were asked for. That is UI v0.7 (D35), offline-tested only. To check in game: the coin button sits on the minimap and can be dragged around it; the window opens beside the AH, in front of it, with a border and a status line; ledger lines read as sentences; `uiNote` and `uiErr` are absent from the file.
+
+## Run 4 — 2026-10-12 19:09–19:15, addon v0.10
+
+The user, now with Tailoring and Enchanting, ran the list: Plan tab and tooltips, both profession windows, one disenchant, the bank, a scan and a post. Read from the file, plus what the user reported:
+
+- **No errors:** `errors` empty, no `uiErr`, no `uiNote` (the bordered window and the minimap button were built with their templates), no events missing.
+- **T12:** the user sees the Plan tab and the tooltip lines.
+- **T10:** "Window works nice." It had been dragged; position and tab were saved.
+- **T14:** one disenchant logged — Copper Chain Belt (quality 2, item level 11, armour) gave 1 Strange Dust. The Classic spell id is right.
+- **T15:** 131 vendor items, e.g. Coarse Thread 10c from Millie Gregorian in Undercity. No limited-stock item seen yet.
+- **T11:** 3,167 items in the reference, all with quality and level.
+- **T6:** the money rows work: −1s for the belt bought at the AH, −1s for a post of 2 Linen at 18c for 2 h. The addon's deposit estimate for that post was 1c — a fourth post that cost exactly 1s. The bought mail and the bid row agree at 1s.
+- **T9:** the bank was read (`bankTs` set) and held nothing sellable. The stack posted 13 s before `/reload` was **not** in the auctions snapshot: the list is only refreshed when asked. v0.10.1 asks again after each new auction. Unit-or-stack price still open.
+- **T3:** 75,834 rows, 19.3 s wait.
+- **T13 failed quietly:** nothing under `recipes`, no error. The modern reader returns without a word when the profession has no name, the recipe list is empty, or nothing is marked learned — so the cause is unknown. v0.10.1 writes what each API answered to `probe.recipes`, tries the Classic trade skill and craft APIs too, reads at once as well as a second later, and has `/fah recipes` to read on demand.
+
+Next: `/reload`, open the Tailoring window, type `/fah recipes` while it is open, then the same for Enchanting, `/reload`.
 
 ## T9 — Inventory and own auctions
 
