@@ -329,7 +329,8 @@ local function recipe(id)
 end
 function C_TradeSkillUI.GetRecipeInfo(id)
   local r = recipe(id)
-  return r and { recipeID = r.id, name = r.name, learned = r.learned }
+  -- return r and { recipeID = r.id, name = r.name, learned = r.learned }   (2026-10-12: difficulty added)
+  return r and { recipeID = r.id, name = r.name, learned = r.learned, relativeDifficulty = r.difficulty }
 end
 function C_TradeSkillUI.GetRecipeSchematic(id, isRecraft)
   if type(isRecraft) ~= "boolean" then error("bad argument #2: isRecraft expected") end

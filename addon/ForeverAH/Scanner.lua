@@ -25,6 +25,22 @@ local CHECK = { 2589, 2770 }  -- T5: Linen Cloth, Copper Ore
 local state = "idle"          -- idle | waiting | processing
 local scan                    -- work table of the scan in progress
 local ahOpen = false
+local seen                    -- added 2026-10-12: Fingerprint() of the list we last read
+
+-- Added 2026-10-12: tells one replicate list from another without reading it all - the row count
+-- and three of its rows. Item events for a list we already read keep coming for as long as the
+-- AH is open; they must not save the same list a second time.
+local function Fingerprint()
+  local n = C_AuctionHouse.GetNumReplicateItems() or 0
+  local parts = { n }
+  if n > 0 then
+    for _, idx in ipairs({ 0, math.floor(n / 2), n - 1 }) do
+      local _, _, count, _, _, _, _, _, _, buyout, _, _, _, _, _, _, itemID = C_AuctionHouse.GetReplicateItemInfo(idx)
+      parts[#parts + 1] = (itemID or 0) .. "/" .. (count or 0) .. "/" .. (buyout or 0)
+    end
+  end
+  return table.concat(parts, ":")
+end
 
 local function Abort(why)
   state, scan = "idle", nil
@@ -211,6 +227,22 @@ local function ProcessChunk(s)
   end
 end
 
+-- Added 2026-10-12: the work table of a new scan, shared by our own request and by the case
+-- where another addon's request filled the list (see REPLICATE_ITEM_LIST_UPDATE below).
+local function NewScan(now)
+  local realm, faction = GetRealmName(), UnitFactionGroup("player") or "?"
+  return {
+    t0 = debugprofilestop(), i = 0, maxMs = 0, items = {}, ids = {}, tl = {},
+    rec = {
+      id = now .. ":" .. realm .. ":" .. faction,
+      ts = now, realm = realm, faction = faction,
+      region = GetCurrentRegion(), zone = GetRealZoneText(),   -- pipeline maps these to a house id
+      n = 0, rows = 0, items = 0, units = 0, miss = 0, skip = 0, frames = 0,
+      raw = {}, agg = {},
+    },
+  }
+end
+
 -- force = true skips our own 15-min timer (the server throttle still applies).
 function ns.Scan(force)
   -- Added 2026-10-11: a clear message instead of a Lua error if the Mainline scan API is absent
@@ -227,17 +259,19 @@ function ns.Scan(force)
     -- return ns.Print("next scan in %d min (/fah scan to try anyway)", math.ceil(wait / 60))
     return ns.Note("next scan in %d min (/fah scan to try anyway)", math.ceil(wait / 60))
   end
-  local realm, faction = GetRealmName(), UnitFactionGroup("player") or "?"
-  local s = {
-    t0 = debugprofilestop(), i = 0, maxMs = 0, items = {}, ids = {}, tl = {},
-    rec = {
-      id = now .. ":" .. realm .. ":" .. faction,
-      ts = now, realm = realm, faction = faction,
-      region = GetCurrentRegion(), zone = GetRealZoneText(),   -- pipeline maps these to a house id
-      n = 0, rows = 0, items = 0, units = 0, miss = 0, skip = 0, frames = 0,
-      raw = {}, agg = {},
-    },
-  }
+  -- Changed 2026-10-12: the table is built by NewScan (above) so both paths share it.
+  -- local realm, faction = GetRealmName(), UnitFactionGroup("player") or "?"
+  -- local s = {
+  --   t0 = debugprofilestop(), i = 0, maxMs = 0, items = {}, ids = {}, tl = {},
+  --   rec = {
+  --     id = now .. ":" .. realm .. ":" .. faction,
+  --     ts = now, realm = realm, faction = faction,
+  --     region = GetCurrentRegion(), zone = GetRealZoneText(),   -- pipeline maps these to a house id
+  --     n = 0, rows = 0, items = 0, units = 0, miss = 0, skip = 0, frames = 0,
+  --     raw = {}, agg = {},
+  --   },
+  -- }
+  local s = NewScan(now)
   state, scan = "waiting", s
   -- Changed 2026-10-11 (beta T3): a throttled request gets no reply at all in Forever (no event,
   -- not an empty list), so the timeout is the throttle signal. Say so, and warn up front.
@@ -271,6 +305,24 @@ end)
 -- Fires once when the list arrives, then again for every item cached afterwards.
 -- Only the first one after our request matters.
 ns.On("REPLICATE_ITEM_LIST_UPDATE", function()
+  -- Changed 2026-10-12: the full scan is one per account per 15 minutes, shared by every addon
+  -- (Auctionator, CraftProfit and others use the same call). If another addon got there first our
+  -- own request is ignored - but its result lands in the same list, with this same event. So when
+  -- we are idle, have no scan of our own inside 15 minutes, and the list is filled: save it.
+  -- (Our own scan's late item events also arrive while idle; the 15-minute test keeps those out,
+  -- and after 15 minutes the fingerprint does - the list is then the one we already read.)
+  -- The same path saves a reply that took longer than our 120 s timeout.
+  -- if state ~= "waiting" then return end
+  if state == "idle" then
+    local now = GetServerTime()
+    if not ahOpen or now - (ns.db.lastScan or 0) < THROTTLE then return end
+    if (C_AuctionHouse.GetNumReplicateItems() or 0) == 0 then return end
+    if Fingerprint() == seen then return end
+    scan = NewScan(now)
+    scan.rec.via = "other"
+    state = "waiting"
+    ns.Print("Another addon scanned the auction house - saving its result too")
+  end
   if state ~= "waiting" then return end
   local s = scan
   local n = C_AuctionHouse.GetNumReplicateItems()
@@ -283,6 +335,7 @@ ns.On("REPLICATE_ITEM_LIST_UPDATE", function()
   end
   s.tReply = debugprofilestop()
   s.rec.n = n
+  seen = Fingerprint()   -- added 2026-10-12
   state = "processing"
   ProcessChunk(s)
 end)

@@ -200,6 +200,52 @@ def test_throttle_and_retention():
     assert len({s["id"] for s in scans}) == 5
 
 
+# Added 2026-10-12 (v0.11): the full scan is shared by every addon on the account. A list that
+# arrives without our asking is saved; a list we already read is not saved twice.
+def test_another_addons_scan_is_saved_too():
+    game = Game()
+    game.set_auctions(make_auctions(500, 20))
+    game.open_ah()
+    assert len(game.db()["scans"]) == 1 and "via" not in game.db()["scans"][0]
+
+    game.g.Advance(16 * 60)                  # AH still open: an item event for the list we already read
+    game.fire("REPLICATE_ITEM_LIST_UPDATE")
+    game.frames(50)
+    assert len(game.db()["scans"]) == 1
+
+    theirs = make_auctions(600, 20, seed=2)  # another addon's scan button
+    game.set_auctions(theirs)
+    game.g.C_AuctionHouse.ReplicateItems()
+    game.fire("REPLICATE_ITEM_LIST_UPDATE")
+    game.frames(50)
+    for _ in range(20):                      # and its item events
+        game.fire("REPLICATE_ITEM_LIST_UPDATE")
+    game.frames(5)
+    scans = game.db()["scans"]
+    assert len(scans) == 2 and scans[1]["via"] == "other" and scans[1]["ts"] == scans[0]["ts"] + 16 * 60
+    assert savedvars.raw_rows(scans[1]) == [tuple(a[:5]) + (a[6],) for a in theirs]
+    assert savedvars.agg_rows(scans[1]) == savedvars.aggregate(savedvars.raw_rows(scans[1]))
+    assert sum("Another addon scanned" in p for p in game.printed()) == 1
+
+    game.close_ah()                          # AH closed: nothing is read
+    game.g.Advance(16 * 60)
+    game.set_auctions(make_auctions(700, 20, seed=3))
+    game.g.C_AuctionHouse.ReplicateItems()
+    game.fire("REPLICATE_ITEM_LIST_UPDATE")
+    game.frames(50)
+    assert len(game.db()["scans"]) == 2
+
+    slow = Game()                            # a reply slower than our 120 s is saved the same way
+    slow.set_auctions(make_auctions(300, 10))
+    slow.open_ah(reply=False)
+    slow.g.Advance(121)
+    slow.frames(2)
+    assert "no reply in 120 s" in slow.printed()[-1] and slow.db()["scans"] == {}
+    slow.fire("REPLICATE_ITEM_LIST_UPDATE")
+    slow.frames(50)
+    assert [s.get("via") for s in slow.db()["scans"]] == ["other"]
+
+
 def test_abort_on_close_and_timeout():
     game = Game()
     game.set_auctions(make_auctions(20_000, 50))
@@ -398,7 +444,8 @@ def test_recipes_are_read_from_the_profession_window():
     game = Game()
     rec = game.lua.table_from
     game.g.RECIPES = rec([
-        rec({"id": 3915, "name": "Linen Bag", "learned": True, "output": 4238, "cooldown": 0,
+        # rec({"id": 3915, "name": "Linen Bag", "learned": True, "output": 4238, "cooldown": 0,   (2026-10-12: difficulty)
+        rec({"id": 3915, "name": "Linen Bag", "learned": True, "output": 4238, "cooldown": 0, "difficulty": 1,
              "reagents": rec([rec([2996, 3]), rec([2320, 3]), rec([9999, 1, 2])])}),      # third one is optional: left out
         rec({"id": 2385, "name": "Brown Linen Vest", "learned": False, "output": 2568, "reagents": rec([rec([2996, 1])])}),
         rec({"id": 18560, "name": "Mooncloth", "learned": True, "output": 14342, "min": 1, "max": 1, "cooldown": 7200.4,
@@ -414,6 +461,7 @@ def test_recipes_are_read_from_the_profession_window():
     assert [(r["name"], r["item_id"], r["reagents"], r["cooldown"]) for r in recipes] == [
         ("Linen Bag", 4238, {2996: 3, 2320: 3}, 0), ("Mooncloth", 14342, {14256: 2}, 7200), ("Runed Copper Rod", 0, {6217: 1}, 0)]
     assert {(r["char"], r["profession"], r["skill"]) for r in recipes} == {("Tester-BetaRealm", "Tailoring", 75)}
+    assert [r["difficulty"] for r in recipes] == [1, -1, -1]   # added 2026-10-12: yellow, and two the client did not grade
     assert sum("Tailoring: 3 recipes saved" in p for p in game.printed()) == 1   # said once, not on every update
 
     game.fire("TRADE_SKILL_LIST_UPDATE")                 # nothing changed: nothing said
@@ -537,6 +585,7 @@ def test_recipes_from_the_classic_profession_windows():
     rod, bracer = recipes["Runed Copper Rod"], recipes["Enchant Bracer - Minor Health"]
     assert (rod["profession"], rod["item_id"], rod["reagents"]) == ("Enchanting", 6218, {6217: 1, 10940: 1})
     assert (bracer["item_id"], bracer["recipe_id"]) == (0, 7418)          # an enchant makes no item
+    assert (bag["difficulty"], recipes["Mooncloth"]["difficulty"], rod["difficulty"]) == (2, 0, 0)   # added 2026-10-12: "easy" green, "optimal" orange
     # probe = game.db()["probe"]["recipes"]   (2026-10-12: a history now)
     probe = game.db()["probe"]["recipes"][-1]
     assert "classic: profession=Tailoring rows=3 recipes=2" in probe and "craft: profession=Enchanting rows=2 recipes=2" in probe

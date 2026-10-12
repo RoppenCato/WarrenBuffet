@@ -4,7 +4,9 @@
 --
 --   ForeverAHDB.recipes[char][profession] = {
 --     ts = server time, skill = n, max = n,
---     list = "recipeID\toutputItemID\tmin\tmax\tcooldownSeconds\treagentID:qty,...\tname\n..."
+--     list = "recipeID\toutputItemID\tmin\tmax\tcooldownSeconds\treagentID:qty,...\tdifficulty\tname\n..."
+--   (difficulty added 2026-10-12: 0 orange, 1 yellow, 2 green, 3 grey, -1 unknown - for finding
+--    the cheapest skill points. Lists saved before that have seven fields, without it.)
 --   }
 -- Only learned recipes. Only the fixed (basic) reagents - optional ones are left out.
 -- outputItemID 0 = the recipe makes no item (most enchants); the planner skips those.
@@ -22,9 +24,15 @@ local _, ns = ...
 
 local failed = false   -- one error per session is enough to know the API differs
 
-local function Line(recipeID, itemID, low, high, cooldown, reagents, name)
+-- local function Line(recipeID, itemID, low, high, cooldown, reagents, name)
+--   return table.concat({ recipeID, itemID or 0, low or 1, high or low or 1, math.floor(cooldown or 0),
+--     table.concat(reagents, ","), name or "" }, "\t")
+-- end
+local COLOUR = { optimal = 0, medium = 1, easy = 2, trivial = 3 }   -- the Classic API names the colour
+
+local function Line(recipeID, itemID, low, high, cooldown, reagents, name, difficulty)
   return table.concat({ recipeID, itemID or 0, low or 1, high or low or 1, math.floor(cooldown or 0),
-    table.concat(reagents, ","), name or "" }, "\t")
+    table.concat(reagents, ","), COLOUR[difficulty] or tonumber(difficulty) or -1, name or "" }, "\t")
 end
 
 local function ItemID(link)
@@ -72,7 +80,7 @@ local function ReadModern()
         end
       end
       out[#out + 1] = Line(recipeID, schematic.outputItemID, schematic.quantityMin, schematic.quantityMax,
-        T.GetRecipeCooldown and T.GetRecipeCooldown(recipeID), reagents, info.name)
+        T.GetRecipeCooldown and T.GetRecipeCooldown(recipeID), reagents, info.name, info.relativeDifficulty)
     end
   end
   -- local note = ("modern: profession=%s id=%s recipes=%d learned=%d"):format(tostring(profession),
@@ -125,7 +133,7 @@ local function ReadClassic()
       local low, high = GetTradeSkillNumMade(i)
       local link = GetTradeSkillRecipeLink and GetTradeSkillRecipeLink(i)
       out[#out + 1] = Line(link and tonumber(link:match("enchant:(%d+)")) or i, ItemID(GetTradeSkillItemLink(i)),
-        low, high, GetTradeSkillCooldown and GetTradeSkillCooldown(i), reagents, name)
+        low, high, GetTradeSkillCooldown and GetTradeSkillCooldown(i), reagents, name, kind)
     end
   end
   local note = ("classic: profession=%s rows=%d recipes=%d"):format(tostring(profession), count, #out)
@@ -149,7 +157,7 @@ local function ReadCraft()
         if id then reagents[#reagents + 1] = id .. ":" .. (needed or 1) end
       end
       local link = GetCraftItemLink and GetCraftItemLink(i)
-      out[#out + 1] = Line(link and tonumber(link:match("enchant:(%d+)")) or i, ItemID(link), 1, 1, 0, reagents, name)
+      out[#out + 1] = Line(link and tonumber(link:match("enchant:(%d+)")) or i, ItemID(link), 1, 1, 0, reagents, name, kind)
     end
   end
   local note = ("craft: profession=%s rows=%d recipes=%d"):format(tostring(profession), count, #out)

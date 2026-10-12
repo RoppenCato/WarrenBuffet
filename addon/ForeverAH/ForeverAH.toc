@@ -4,7 +4,9 @@
 ## Interface: 16001
 ## Title: ForeverAH
 ## Notes: AH scanner and own-transaction ledger. Reads and displays only - never posts, buys, bids or cancels.
-## Version: 0.10.3
+# Changed 2026-10-12: 0.11.0 saves a full scan another addon asked for, and the colour of each recipe.
+# ## Version: 0.10.3
+## Version: 0.11.0
 ## SavedVariables: ForeverAHDB
 
 Core.lua

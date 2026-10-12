@@ -192,10 +192,15 @@ def recipes(db: dict) -> list[dict]:
             for line in (rec.get("list") or "").split("\n"):
                 if not line:
                     continue
-                recipe_id, item_id, low, high, cooldown, reagents, name = line.split("\t", 6)
+                # Changed 2026-10-12: lists from addon v0.11 on have a difficulty field before the name.
+                # recipe_id, item_id, low, high, cooldown, reagents, name = line.split("\t", 6)
+                fields = line.split("\t")
+                recipe_id, item_id, low, high, cooldown, reagents = fields[:6]
+                difficulty, name = (int(fields[6]), "\t".join(fields[7:])) if len(fields) >= 8 else (-1, fields[6])
                 out.append({"char": char, "profession": profession, "skill": rec.get("skill", 0), "ts": rec.get("ts", 0),
                             "recipe_id": int(recipe_id), "name": name, "item_id": int(item_id), "qty_min": int(low),
-                            "qty_max": int(high), "cooldown": int(cooldown), "reagents": _counts(reagents)})
+                            "qty_max": int(high), "cooldown": int(cooldown), "reagents": _counts(reagents),
+                            "difficulty": difficulty})
     return out
 
 
