@@ -193,7 +193,7 @@ The user, now with Tailoring and Enchanting, ran the list: Plan tab and tooltips
 - **T15:** 131 vendor items, e.g. Coarse Thread 10c from Millie Gregorian in Undercity. No limited-stock item seen yet.
 - **T11:** 3,167 items in the reference, all with quality and level.
 - **T6:** the money rows work: −1s for the belt bought at the AH, −1s for a post of 2 Linen at 18c for 2 h. The addon's deposit estimate for that post was 1c — a fourth post that cost exactly 1s. The bought mail and the bid row agree at 1s.
-- **T9:** the bank was read (`bankTs` set) and held nothing sellable. The stack posted 13 s before `/reload` was **not** in the auctions snapshot: the list is only refreshed when asked. v0.10.1 asks again after each new auction. Unit-or-stack price still open.
+- **T9:** the bank was read (`bankTs` set) and held nothing sellable. The stack posted 13 s before `/reload` was **not** in the auctions snapshot. First read as a stale list (v0.10.1 asks again after each new auction, which is still right to do), but the user later said the Linen sold the moment it was posted — so there was most likely nothing left to list. Unit-or-stack price still open; it needs an auction that stays up.
 - **T3:** 75,834 rows, 19.3 s wait.
 - **T13 failed quietly:** nothing under `recipes`, no error. The modern reader returns without a word when the profession has no name, the recipe list is empty, or nothing is marked learned — so the cause is unknown. v0.10.1 writes what each API answered to `probe.recipes`, tries the Classic trade skill and craft APIs too, reads at once as well as a second later, and has `/fah recipes` to read on demand.
 
