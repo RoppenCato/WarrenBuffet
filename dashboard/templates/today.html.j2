@@ -73,9 +73,11 @@
         <td class="reason">{{ r.why }}</td></tr>{% endfor %}
     </table></div>
     {% if launch %}
-    <p class="note">"You get" is after a 5 % AH cut and a 1s deposit; on a "Vendor it" line it is what the vendor pays. Vendor prices come from the game, via the addon.</p>
+    {# was: "You get" is after a 5 % AH cut and a 1s deposit (changed 2026-10-15, T6: the deposit comes back on a sale) #}
+    <p class="note">"You get" is after the 5 % AH cut. Each post puts down a deposit of at least 1s: it comes back when the lot sells, and is lost if it expires or you cancel. On a "Vendor it" line it is what the vendor pays. Vendor prices come from the game, via the addon.</p>
     {% else %}
-    <p class="note">"You get" is after a 5 % AH cut and a 1s deposit. 7-day medians and sold-per-day: <a href="{{ attribution.url }}">{{ attribution.text }}</a>.</p>
+    {# was: "You get" is after a 5 % AH cut and a 1s deposit (changed 2026-10-15, T6) #}
+    <p class="note">"You get" is after the 5 % AH cut. Each post puts down a deposit of at least 1s, back when the lot sells. 7-day medians and sold-per-day: <a href="{{ attribution.url }}">{{ attribution.text }}</a>.</p>
     {% endif %}
     {% endif %}
     {% if inv_err %}<p class="note">Inventory snapshot error: {{ inv_err }}</p>{% endif %}
@@ -96,7 +98,8 @@
         <td class="num">{{ "{:,}".format(r.units) }}</td><td class="num">{{ r.cost }}{% if r.estimated %}<small>est.</small>{% endif %}</td>
         <td class="num">{{ r.price }}</td><td class="num">{{ r.profit }}</td><td class="reason">{{ r.why }}</td></tr>{% endfor %}
     </table></div>
-    <p class="note">Each post still costs a deposit of at least 1s. "est." means a material is not on the AH and was priced at four times its vendor value.</p>
+    {# was: Each post still costs a deposit of at least 1s. (changed 2026-10-15, T6) #}
+    <p class="note">Each post puts down a deposit of at least 1s, back when the lot sells. "est." means a material is not on the AH and was priced at four times its vendor value.</p>
     {% endif %}
     {% if skillups %}
     <h3 style="font-size:15px;margin:18px 0 2px">Cheapest skill points</h3>
@@ -157,7 +160,8 @@
         <td class="num">{{ "{:,}".format(r.units) }}</td><td class="num">{{ r.max_price }}</td><td class="num">{{ r.resale }}</td>
         <td class="num">{{ r.cost }}</td><td class="num">{{ r.profit }}</td><td class="reason">{{ r.why }}</td></tr>{% endfor %}
     </table></div>
-    <p class="note">Profit is after a 5 % AH cut and a 1s deposit. A lot can be gone minutes after the scan. 7-day medians and sold-per-day: <a href="{{ attribution.url }}">{{ attribution.text }}</a>.</p>
+    {# was: Profit is after a 5 % AH cut and a 1s deposit. (changed 2026-10-15, T6) #}
+    <p class="note">Profit is after the 5 % AH cut. The 1s deposit comes back when you resell; it is lost if the lot does not sell. A lot can be gone minutes after the scan. 7-day medians and sold-per-day: <a href="{{ attribution.url }}">{{ attribution.text }}</a>.</p>
     {% else %}
     <p class="note">Nothing passes the rules in this scan.</p>
     {% endif %}

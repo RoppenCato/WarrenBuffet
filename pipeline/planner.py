@@ -11,7 +11,10 @@ import datetime as dt
 
 from pipeline import analytics
 
-MIN_LOT_VALUE = 20 * analytics.MIN_DEPOSIT   # 20s: below this the 1s deposit is over 5 % of the lot
+# MIN_LOT_VALUE = 20 * analytics.MIN_DEPOSIT   # 20s: below this the 1s deposit is over 5 % of the lot
+# Changed 2026-10-15 (T6): the deposit comes back when the lot sells, so a small lot only risks it
+# when it may not sell. Lots under 20s are held back only if the item sells slowly or nobody knows.
+MIN_LOT_VALUE = 20 * analytics.MIN_DEPOSIT   # 20s: below this, losing the 1s deposit is over 5 % of the lot
 SELL_PREMIUM = 1.3      # playbook 1: sell when the price is 1.3x its 7-day median or more
 HOLD_DISCOUNT = 0.8     # price at or under 0.8x its 7-day median: wait
 TIGHT_DAYS = 0.5        # under half a day of stock listed: supply is tight
@@ -50,11 +53,17 @@ def sell(holdings: dict[int, int], books, ahl, phase: str | None = None) -> list
         listed = sum(q for _, q in book)
         sold = ref.sold_per_day if ref and ref.sold_per_day else 0
         normal = ref.median_7d if ref else None
+        # rec = {"item_id": item_id, "units": units, "price": price, "value": value,
+        #        "net": value * (1 - analytics.AH_CUT) - analytics.MIN_DEPOSIT}
+        # if value < MIN_LOT_VALUE:
+        #     rec.update(action="keep", why=f"The lot is worth {analytics.money(value)} and a post costs "
+        #                                   f"{analytics.money(analytics.MIN_DEPOSIT)}. Collect more first, or vendor it.")
+        # Changed 2026-10-15 (T6): no deposit in the net - it comes back when the lot sells. A small
+        # lot of something that sells fast is posted; of something slow, it is still held back.
         rec = {"item_id": item_id, "units": units, "price": price, "value": value,
-               "net": value * (1 - analytics.AH_CUT) - analytics.MIN_DEPOSIT}
-        if value < MIN_LOT_VALUE:
-            rec.update(action="keep", why=f"The lot is worth {analytics.money(value)} and a post costs "
-                                          f"{analytics.money(analytics.MIN_DEPOSIT)}. Collect more first, or vendor it.")
+               "net": value * (1 - analytics.AH_CUT)}
+        if value < MIN_LOT_VALUE and sold < MIN_SOLD:
+            rec.update(action="keep", why=_small_lot(value, sold))
         elif normal and price >= normal * SELL_PREMIUM:
             rec.update(action="sell", why=f"Cheapest listing is {price / normal - 1:.0%} above its 7-day median.")
         elif sold >= MIN_SOLD and listed / sold < TIGHT_DAYS:
@@ -75,9 +84,19 @@ def sell(holdings: dict[int, int], books, ahl, phase: str | None = None) -> list
             rec.update(action="sell", why="No price history yet. Launch week: sell raw materials now, prices fall as supply catches up.")
         else:
             rec.update(action="sell", why="No price history for this item yet, so nothing to compare with. Sell when convenient.")
+        if rec["action"] == "sell" and value < MIN_LOT_VALUE:   # added 2026-10-15
+            rec["why"] += f" A small lot, but about {sold:,.0f} sell a day: the deposit comes back when it sells."
         out.append(rec)
     order = {"sell": 0, "hold": 1, "keep": 2, "price": 3}
     return sorted(out, key=lambda r: (order[r["action"]], -r["value"]))
+
+
+def _small_lot(value, sold, pays_for=0) -> str:
+    """Why a small lot is held back (added 2026-10-15)."""
+    money = analytics.money
+    pace = f"only about {sold:,.0f} sell a day" if sold else "nobody knows yet how fast it sells"
+    return (f"The lot is worth {money(value)} and {pace}. A post puts down {money(analytics.MIN_DEPOSIT)}, "
+            "lost if it does not sell. Collect more first" + (f", or vendor it for {money(pays_for)}." if pays_for else ", or vendor it."))
 
 
 def launch_mode(phase: str | None, books, ahl) -> bool:
@@ -89,12 +108,16 @@ def launch_mode(phase: str | None, books, ahl) -> bool:
     return bool(books) and with_history < 0.2 * len(books)
 
 
-def sell_launch(holdings: dict[int, int], books, prev_books=None, vendor=None, category=None) -> list[dict]:
+# def sell_launch(holdings: dict[int, int], books, prev_books=None, vendor=None, category=None) -> list[dict]:
+# (2026-10-15: sold_per_day, from AHledger once it has a day of the new market - see sell())
+def sell_launch(holdings: dict[int, int], books, prev_books=None, vendor=None, category=None,
+                sold_per_day=None) -> list[dict]:
     """Launch week version of sell(). There is no "normal" price yet, so nothing is compared with
     one. What is left: the vendor price as a floor, the deposit, how the price moved since the
     previous scan, and the playbook - raw materials peak in the first days, so sell, don't hold.
     vendor: {item_id: copper a vendor pays per unit}; category: {item_id: watchlist category}."""
     prev_books, vendor, category = prev_books or {}, vendor or {}, category or {}
+    sold_per_day = sold_per_day or {}
     money = analytics.money
     out = []
     for item_id, units in holdings.items():
@@ -106,15 +129,21 @@ def sell_launch(holdings: dict[int, int], books, prev_books=None, vendor=None, c
             continue
         price = book[0][0]
         value = units * price
-        net = value * (1 - analytics.AH_CUT) - analytics.MIN_DEPOSIT
+        # net = value * (1 - analytics.AH_CUT) - analytics.MIN_DEPOSIT   (2026-10-15: the deposit comes back, T6)
+        net = value * (1 - analytics.AH_CUT)
+        sold = sold_per_day.get(item_id) or 0
         rec = {"item_id": item_id, "units": units, "price": price, "value": value, "net": net}
         if pays and net <= units * pays:
             rec.update(action="vendor", net=units * pays,
+                       # why=f"A vendor pays {money(pays)} each. The AH would leave {money(max(net, 0) / units)} each "
+                       #     "after the 5 % cut and the deposit.")
                        why=f"A vendor pays {money(pays)} each. The AH would leave {money(max(net, 0) / units)} each "
-                           "after the 5 % cut and the deposit.")
-        elif value < MIN_LOT_VALUE:
-            rec.update(action="keep", why=f"The lot is worth {money(value)} and a post costs {money(analytics.MIN_DEPOSIT)}. "
-                                          "Collect more first" + (f", or vendor it for {money(units * pays)}." if pays else "."))
+                           "after the 5 % cut, and only once it sells.")
+        # elif value < MIN_LOT_VALUE:
+        #     rec.update(action="keep", why=f"The lot is worth {money(value)} and a post costs {money(analytics.MIN_DEPOSIT)}. "
+        #                                   "Collect more first" + (f", or vendor it for {money(units * pays)}." if pays else "."))
+        elif value < MIN_LOT_VALUE and sold < MIN_SOLD:   # changed 2026-10-15: see sell()
+            rec.update(action="keep", why=_small_lot(value, sold, units * pays))
         elif category.get(item_id) in KEEP_CATEGORIES:
             rec.update(action="choice", why="Wanted at level 60. Keep it if you can spare the gold and bag space; "
                                             "sell it if the mount fund needs it.")
@@ -164,8 +193,9 @@ def below_vendor(books, vendor, balance: int = 0, limit: int = 8) -> list[dict]:
 def vendor_flips(vendors: dict, books, sold_per_day=None, balance: int = 0, limit: int = 8) -> list[dict]:
     """Things a vendor sells for less than they list for on the AH (playbook 7). Limited-stock
     items are the classic case; for unlimited stock a small batch is suggested, sized to what
-    sells. Profit is after the AH cut and one deposit. This is a resale bet, not free money: if it
-    does not sell, a vendor gives back only a fraction."""
+    sells. Profit is after the AH cut (2026-10-15: no longer minus a deposit - it comes back when
+    the lot sells). This is a resale bet, not free money: if it does not sell, the deposit is lost
+    and a vendor gives back only a fraction."""
     sold_per_day = sold_per_day or {}
     money, out = analytics.money, []
     for item_id, v in vendors.items():
@@ -178,7 +208,8 @@ def vendor_flips(vendors: dict, books, sold_per_day=None, balance: int = 0, limi
             units = v["available"]
         else:
             units = max(1, int(min(20, sold / 4))) if sold else 5
-        profit = units * each - analytics.MIN_DEPOSIT
+        # profit = units * each - analytics.MIN_DEPOSIT   (2026-10-15: the deposit comes back, T6)
+        profit = units * each
         if units <= 0 or each < price * MIN_CRAFT_RETURN or profit < MIN_FLIP_PROFIT:
             continue
         cost = units * price
@@ -368,24 +399,37 @@ def craft(recipes: list[dict], books, vendor=None, holdings=None, sold_per_day=N
     return sorted(out, key=lambda d: (d["units"] == 0, -d["profit"]))
 
 
-def repost(auctions: list[dict], books) -> list[dict]:
-    """Own active auctions against the cheapest listing now. `buyout` is taken as the unit price
-    (unverified for stacks - see docs/07-test-plan.md, T9)."""
+# def repost(auctions: list[dict], books) -> list[dict]:
+#     """Own active auctions against the cheapest listing now. `buyout` is taken as the unit price
+#     (unverified for stacks - see docs/07-test-plan.md, T9)."""
+# Changed 2026-10-15 (beta T9): own auctions are read, but only single units were posted, so
+# whether `buyout` is per unit or per stack is still open. `posted` = {auction id: unit price}
+# from the ledger's post rows, which carry the unit price - used first when the id is known.
+def repost(auctions: list[dict], books, posted=None) -> list[dict]:
+    """Own active auctions against the cheapest listing now. The price per unit comes from the
+    ledger's post row for the same auction when there is one, else `buyout` is taken as it."""
+    posted = posted or {}
     out = []
     for a in auctions:
         if a["status"] != 0:
             continue
         book = books.get(a["item"])
         cheapest = book[0][0] if book else None
-        rec = {"item_id": a["item"], "units": a["qty"], "price": a["buyout"], "cheapest": cheapest,
+        unit = posted.get(a.get("auction"), a["buyout"])
+        # rec = {"item_id": a["item"], "units": a["qty"], "price": a["buyout"], "cheapest": cheapest,
+        rec = {"item_id": a["item"], "units": a["qty"], "price": unit, "cheapest": cheapest,
                "hours": a["seconds"] / 3600, "char": a.get("char", "")}   # char added 2026-10-11
-        if not cheapest or a["buyout"] <= cheapest * (1 + UNDERCUT):
+        # if not cheapest or a["buyout"] <= cheapest * (1 + UNDERCUT):
+        if not cheapest or unit <= cheapest * (1 + UNDERCUT):
             rec.update(action="leave", why="Yours is the cheapest, or within 5 % of it.")
         elif a["qty"] * cheapest < MIN_LOT_VALUE:
-            rec.update(action="leave", why="Undercut, but the lot is too small to be worth another "
-                                           f"{analytics.money(analytics.MIN_DEPOSIT)} deposit.")
+            # rec.update(action="leave", why="Undercut, but the lot is too small to be worth another "
+            #                                f"{analytics.money(analytics.MIN_DEPOSIT)} deposit.")
+            rec.update(action="leave", why="Undercut, but the lot is too small to be worth cancelling: "
+                                           f"that loses its {analytics.money(analytics.MIN_DEPOSIT)} deposit.")
         else:
-            rec.update(action="repost", why=f"Undercut by {a['buyout'] / cheapest - 1:.0%}. Cancelling loses the deposit, "
+            # rec.update(action="repost", why=f"Undercut by {a['buyout'] / cheapest - 1:.0%}. Cancelling loses the deposit, "
+            rec.update(action="repost", why=f"Undercut by {unit / cheapest - 1:.0%}. Cancelling loses the deposit, "
                                             "so repost only if it will not sell otherwise.")
         out.append(rec)
     return sorted(out, key=lambda r: r["action"] != "repost")

@@ -174,10 +174,14 @@ def build(sv, market: str | None, pull: bool, out: Path, today: dt.date | None =
     category = {e["id"]: cat for cat, entries in watch.items() for e in entries if e.get("id")}
     launch = planner.launch_mode(phase_id, book, ahl)
     if launch:
-        sells = planner.sell_launch(dict(holdings), book, prev_book, vendor, category)
+        # sells = planner.sell_launch(dict(holdings), book, prev_book, vendor, category)   (2026-10-15: + sold per day)
+        sells = planner.sell_launch(dict(holdings), book, prev_book, vendor, category, sold)
     else:
         sells = planner.sell(dict(holdings), book, ahl, phase_id)
-    reposts = planner.repost(inv["auctions"], book)
+    # reposts = planner.repost(inv["auctions"], book)
+    # (2026-10-15, T9: the unit price of each own auction from its post row, where the ledger has one)
+    posted = {r["auction"]: r["unit"] for r in ledger if r["event"] == "post" and r.get("auction") and r.get("unit")}
+    reposts = planner.repost(inv["auctions"], book, posted)
     # buys = planner.buy(book, ahl, summary["last"])   (2026-10-11: the trader's gold is the budget)
     # buys = planner.buy(book, ahl, budget)   (2026-10-11: no flips in launch week, only below-vendor lots)
     buys = [] if launch else planner.buy(book, ahl, budget)

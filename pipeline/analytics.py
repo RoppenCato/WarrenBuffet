@@ -10,6 +10,9 @@ from collections import Counter, defaultdict
 
 AH_CUT = 0.05        # faction AH cut on a sale (playbook; not verified in Forever yet)
 MIN_DEPOSIT = 100    # copper per post - beta 2026-10-11 (docs/07-test-plan.md, T5)
+# Added 2026-10-15 (beta T6): the deposit comes back with the payment when an auction sells
+# (2 Linen Cloth sold for 36c: the mail paid 1s 35c = 36c - 1c cut + 1s deposit). It is only lost
+# when the auction expires or is cancelled - a risk on a slow seller, not a cost of every sale.
 
 
 def money(copper: float) -> str:
@@ -73,9 +76,9 @@ def underpriced(book_by_item, resale, sold_per_day, discount: float = 0.30, min_
 
     resale[item_id] is the price we expect to relist at - pass something conservative. A listing
     median alone overstates it: listings are asks, sales happen at the cheap end.
-    Buy every unit at or below (1 - discount) x resale. Profit is after the AH cut and one
-    minimum deposit. Lots above max_share_of_day of estimated daily sales are skipped - they
-    would not clear in time.
+    Buy every unit at or below (1 - discount) x resale. Profit is after the AH cut; the deposit
+    comes back when the lot sells (changed 2026-10-15, T6 - it was subtracted). Lots above
+    max_share_of_day of estimated daily sales are skipped - they would not clear in time.
     """
     out = []
     for item_id, book in book_by_item.items():
@@ -87,7 +90,8 @@ def underpriced(book_by_item, resale, sold_per_day, discount: float = 0.30, min_
         if not units or units > sold * max_share_of_day:
             continue
         cost = sum(p * q for p, q in cheap)
-        profit = units * price * (1 - AH_CUT) - cost - MIN_DEPOSIT
+        # profit = units * price * (1 - AH_CUT) - cost - MIN_DEPOSIT   (2026-10-15: the deposit comes back, T6)
+        profit = units * price * (1 - AH_CUT) - cost
         if profit > 0:
             out.append({"item_id": item_id, "units": units, "cost": cost, "avg_buy": cost / units,
                         "resale": price, "sold_per_day": sold, "profit": profit})

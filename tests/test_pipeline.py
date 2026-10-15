@@ -31,11 +31,16 @@ def test_underpriced_needs_discount_liquidity_and_profit():
     book = {1: [(100, 10), (200, 10), (300, 20)], 2: [(100, 10), (300, 20)], 3: [(1, 5), (10, 50)]}
     resale, sold = {1: 200, 2: 200, 3: 10}, {1: 100, 2: 5, 3: 1000}
     deals = analytics.underpriced(book, resale, sold)
-    assert [d["item_id"] for d in deals] == [1]          # 2 sells too slowly, 3 loses to the deposit
+    # Changed 2026-10-15 (T6): the deposit comes back on a sale, so item 3's 43c is a deal too.
+    # assert [d["item_id"] for d in deals] == [1]          # 2 sells too slowly, 3 loses to the deposit
+    assert [d["item_id"] for d in deals] == [1, 3]       # 2 sells too slowly
     d = deals[0]
     assert (d["units"], d["cost"], d["resale"]) == (10, 1000, 200)
-    assert d["profit"] == 10 * 200 * 0.95 - 1000 - analytics.MIN_DEPOSIT
-    assert analytics.underpriced(book, resale, {1: 15, 2: 5, 3: 1000}, min_sold=10) == []   # lot > half a day of sales
+    # assert d["profit"] == 10 * 200 * 0.95 - 1000 - analytics.MIN_DEPOSIT
+    assert d["profit"] == 10 * 200 * 0.95 - 1000 and deals[1]["profit"] == 5 * 10 * 0.95 - 5
+    # assert analytics.underpriced(book, resale, {1: 15, 2: 5, 3: 1000}, min_sold=10) == []   # lot > half a day of sales
+    slow = analytics.underpriced(book, resale, {1: 15, 2: 5, 3: 1000}, min_sold=10)   # 2026-10-15: item 3 stays
+    assert [d["item_id"] for d in slow] == [3]                                         # item 1: lot > half a day of sales
 
 
 def test_ledger_summary_infers_deposits_from_the_balance():
@@ -192,7 +197,8 @@ def test_vendor_flips():
     flips = planner.vendor_flips(vendors, books, sold_per_day={3: 200}, balance=4500)
     assert [(d["item_id"], d["units"], d["affordable"]) for d in flips] == [(1, 2, True), (3, 20, False)]
     recipe_flip = flips[0]
-    assert recipe_flip["profit"] == 2 * (9000 * 0.95 - 2000) - 100 and recipe_flip["action"] == "vendor_buy"
+    # assert recipe_flip["profit"] == 2 * (9000 * 0.95 - 2000) - 100 and recipe_flip["action"] == "vendor_buy"
+    assert recipe_flip["profit"] == 2 * (9000 * 0.95 - 2000) and recipe_flip["action"] == "vendor_buy"   # 2026-10-15: no deposit
     assert "Bliztik in Booty Bay sells it for 20s 00c, 2 in stock when last seen" in recipe_flip["why"]
     assert "About 200 sell a day" in flips[1]["why"]
 
@@ -248,15 +254,23 @@ def test_planner_sell_rules():
         3: [(70, 5000)],                 # 30 % under its 7-day median
         4: [(100, 5000)],                # at its normal price
         5: [(17, 9000)],                 # held lot too small to post
+        7: [(17, 9000)],                 # (2026-10-15) a small lot of something that sells fast
     }
-    ahl = {1: price(100, 10), 2: price(100, 1000), 3: price(100, 10), 4: price(100, 10), 5: price(17, 5000)}
-    held = {1: 100, 2: 100, 3: 100, 4: 100, 5: 13, 6: 50}
+    # Changed 2026-10-15 (T6): the deposit comes back on a sale. Item 5 now sells slowly (it used to
+    # be 5,000 a day); item 7 is the same small lot of a fast seller, and is posted.
+    # ahl = {1: price(100, 10), 2: price(100, 1000), 3: price(100, 10), 4: price(100, 10), 5: price(17, 5000)}
+    # held = {1: 100, 2: 100, 3: 100, 4: 100, 5: 13, 6: 50}
+    ahl = {1: price(100, 10), 2: price(100, 1000), 3: price(100, 10), 4: price(100, 10), 5: price(17, 10), 7: price(17, 5000)}
+    held = {1: 100, 2: 100, 3: 100, 4: 100, 5: 13, 6: 50, 7: 13}
     recs = {r["item_id"]: r for r in planner.sell(held, books, ahl)}
-    assert [recs[i]["action"] for i in (1, 2, 3, 4, 5, 6)] == ["sell", "sell", "hold", "sell", "keep", "price"]
+    assert [recs[i]["action"] for i in (1, 2, 3, 4, 5, 6, 7)] == ["sell", "sell", "hold", "sell", "keep", "price", "sell"]
     assert "30% above" in recs[1]["why"] and "Supply is tight" in recs[2]["why"] and "30% under" in recs[3]["why"]
-    assert "worth 2s 21c" in recs[5]["why"] and "post costs 1s 00c" in recs[5]["why"]
-    assert recs[1]["net"] == 100 * 130 * 0.95 - 100
-    assert [r["action"] for r in planner.sell(held, books, ahl)] == ["sell", "sell", "sell", "hold", "keep", "price"]
+    # assert "worth 2s 21c" in recs[5]["why"] and "post costs 1s 00c" in recs[5]["why"]
+    # assert recs[1]["net"] == 100 * 130 * 0.95 - 100
+    assert "worth 2s 21c" in recs[5]["why"] and "only about 10 sell a day" in recs[5]["why"] and "lost if it does not sell" in recs[5]["why"]
+    assert "about 5,000 sell a day: the deposit comes back" in recs[7]["why"]
+    assert recs[1]["net"] == 100 * 130 * 0.95
+    assert [r["action"] for r in planner.sell(held, books, ahl)] == ["sell", "sell", "sell", "sell", "hold", "keep", "price"]
     launch = {r["item_id"]: r for r in planner.sell(held, books, ahl, phase="sell_to_levelers")}
     assert launch[3]["action"] == "sell" and "launch week" in launch[3]["why"]
 
@@ -276,6 +290,10 @@ def test_planner_repost_and_buy():
     recs = planner.repost(mine, books)
     assert [(r["item_id"], r["action"]) for r in recs] == [(2, "repost"), (1, "leave"), (3, "leave")]
     assert "Undercut by 50%" in recs[0]["why"] and recs[0]["hours"] == 2
+    # Added 2026-10-15 (T9): the post row's unit price wins when the auction id is known.
+    stack = [{"auction": 77, "item": 2, "qty": 50, "buyout": 5000, "status": 0, "seconds": 7200}]   # if buyout were per stack
+    assert planner.repost(stack, books)[0]["action"] == "repost"
+    assert planner.repost(stack, books, posted={77: 100})[0]["action"] == "leave"
 
     # Changed 2026-10-11: flips under 10s are dropped, so item 1's lot grew and item 3 was added.
     # books = {1: [(100, 10), (200, 10), (300, 20)], 2: [(10, 40), (200, 100), (210, 100)]}
@@ -304,8 +322,11 @@ def test_launch_mode_rules():
     assert [recs[i]["action"] for i in range(1, 9)] == ["sell", "sell", "sell", "sell", "vendor", "keep", "choice", "price"]
     assert "fell 25%" in recs[1]["why"] and "supply grew 150%" in recs[1]["why"]
     assert "rose 50%" in recs[2]["why"] and "steady" in recs[3]["why"] and "No earlier scan" in recs[4]["why"]
-    assert "vendor pays 19c each" in recs[5]["why"] and "leave 18c each" in recs[5]["why"] and recs[5]["net"] == 1900
+    # assert "vendor pays 19c each" in recs[5]["why"] and "leave 18c each" in recs[5]["why"] and recs[5]["net"] == 1900
+    assert "vendor pays 19c each" in recs[5]["why"] and "leave 19c each" in recs[5]["why"] and recs[5]["net"] == 1900   # 2026-10-15
     assert "vendor it for 26c" in recs[6]["why"] and "level 60" in recs[7]["why"]
+    fast = {r["item_id"]: r for r in planner.sell_launch({6: 13}, books, prev, {6: 2}, sold_per_day={6: 3000})}   # 2026-10-15
+    assert fast[6]["action"] == "sell"
     assert "vendor pays 40c" in recs[8]["why"]                      # no listings, but a floor is known
     assert not any("7-day" in r["why"] for r in recs.values())      # nothing claims a history
 
