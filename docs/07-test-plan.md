@@ -9,11 +9,11 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T2 | Blizzard Game Data API has Forever auctions | Web | ⏳ (at launch) |
 | T3 | `ReplicateItems` full scan works in Forever client | Beta | ✅ 2026-10-11 |
 | T4 | SavedVariables size, write on logout, Python parse | Beta | ✅ 2026-10-11 |
-| T5 | Commodities included in replicate? AH type? | Beta | ✅ 2026-10-11 — included; deposit is at least 1s per post; neutral cut still open |
-| T6 | Ledger captures post/sold/bought/expired | Beta | ⚠️ 2026-10-12 — post, cancel, bought, cancelled, expired and the money rows correct; only `sold` not seen yet |
+| T5 | Commodities included in replicate? AH type? | Beta | ✅ 2026-10-11 — included; deposit is at least 1s per post, returned on a sale (T6); neutral cut still open |
+| T6 | Ledger captures post/sold/bought/expired | Beta | ✅ 2026-10-15 — `sold` seen too: the 1s deposit comes back with the payment |
 | T7 | Own scan vs AHledger agree on same hour | Beta/launch | ✅ 2026-10-11 — medians within 2 %, mins within 1 copper, 6 min apart |
 | T8 | Scheduled hourly pull runs unattended for 48h | PC | ✅ 2026-10-15 — 94 hourly runs since 2026-10-11 19:07, none missed, none failed |
-| T9 | Inventory and own-auctions snapshot | Beta | ⚠️ 2026-10-12 — bags correct, bank read (it was empty), query does not disturb the scan; a live auction still not captured (fixed in v0.10.1, untested) |
+| T9 | Inventory and own-auctions snapshot | Beta | ✅ 2026-10-15 — two live auctions read, ids match the post rows; per unit or per stack still unknown, no longer needed (the post row has the unit price) |
 | T10 | Log window, button, several characters | Beta | ✅ 2026-10-12 for the window and minimap button (user: "window works nice"); second character not tested |
 | T15 | Vendor prices recorded at the vendor | Beta | ✅ 2026-10-12 — 131 items from six vendors, Coarse Thread 10c |
 | T13 | Recipes read from the profession window | Beta | ✅ 2026-10-12 — Tailoring and Enchanting saved, 5 recipes each, materials and outputs right |
@@ -21,7 +21,7 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T12 | In-game plan and tooltip lines | Beta | ✅ 2026-10-12 — the user sees the Plan tab and the three tooltip lines |
 | T11 | Item reference: names and vendor prices | Beta | ✅ 2026-10-12 — 3,167 items after two scans with the repeat pass (the last scan had 3,102) |
 | T16 | Another addon's full scan is saved too | Beta | ⏳ — optional, needs a second scanning addon installed |
-| T17 | Recipe colour saved; cheapest skill points | Beta | ⏳ — open both profession windows once with v0.11 |
+| T17 | Recipe colour saved; cheapest skill points | Beta | ⚠️ 2026-10-15 — saved; all ten recipes orange at skill 1–2, as expected; no yellow or green seen yet |
 
 ## T1 — AHledger API ✅
 
@@ -217,6 +217,15 @@ The probe answered the recipe question: `modern: profession= id=0 recipes=261 le
 - When the second window opened, the first event still carried the previous profession's list (471 recipes under Enchanting for a moment). The final state was right; v0.10.3 skips an attempt whose recipes belong to another profession than the window.
 - With the real recipes the Craft section works end to end: Bolt of Linen Cloth from the 20 Linen held (4s 75c as bolts against 3s 23c raw), Brown Linen Shirt +1s 30c, Linen Bag +1s 05c. Coarse Thread is priced at the vendor's 10c from the vendor log, not the 15c someone lists it for.
 - Finding: a vendor pays 2s for a Linen Bag that costs 1s 80c to make. The planner now treats what a vendor pays as an outlet and says so.
+
+## Run 7 — 2026-10-15 17:10–17:13, addon v0.11
+
+- No errors. One scan of our own: 53,677 auctions, 2,916 items, 8 s wait (the beta house had 76,000 on 2026-10-12).
+- **T6 passes.** The Linen sale from run 4 paid out: `sold` 2 Linen Cloth for 36c, cut 1c, and the mail paid **1s 35c** — the sale, minus the cut, **plus the 1s deposit back**. The `money` row after the mail agrees (+1s 35c). So the deposit is lost only when an auction expires or is cancelled. The planner subtracted it from every sale; fixed (D43).
+- The cut of 1c on 36c fits 5 % rounded down (1.8c); a sale this small cannot tell 5 % from 3 %. A sale of a few silver would.
+- **T9.** Two Linen Cloth posted as two single auctions at 2g 0s 14c for 24 h: both in `auctions` (qty 1, 86,398 s left), ids equal to the two `post` rows, 1s deposit each (`money` −1s; the API estimate said 0). With single units, per unit and per stack read the same. The planner now takes the unit price from the post row for the same auction id, so the question only matters for auctions posted without the addon.
+- **T17.** Every recipe line has the colour field; all ten are 0 (orange), which fits skill 1 and 2. The Today page now shows "Cheapest skill points". A recipe that has turned yellow or green would prove the field changes — craft a few Bolts of Linen Cloth, if there is time.
+- Second character (T10) not tried.
 
 ## T9 — Inventory and own auctions
 
