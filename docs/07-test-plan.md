@@ -12,7 +12,7 @@ Status legend: ✅ pass · ❌ fail · ⏳ todo · ⚠️ partial
 | T5 | Commodities included in replicate? AH type? | Beta | ✅ 2026-10-11 — included; deposit is at least 1s per post; neutral cut still open |
 | T6 | Ledger captures post/sold/bought/expired | Beta | ⚠️ 2026-10-12 — post, cancel, bought, cancelled, expired and the money rows correct; only `sold` not seen yet |
 | T7 | Own scan vs AHledger agree on same hour | Beta/launch | ✅ 2026-10-11 — medians within 2 %, mins within 1 copper, 6 min apart |
-| T8 | Scheduled hourly pull runs unattended for 48h | PC | ⏳ — scheduled 2026-10-11 18:21, first run ok; check the log on 2026-10-13 evening |
+| T8 | Scheduled hourly pull runs unattended for 48h | PC | ✅ 2026-10-15 — 94 hourly runs since 2026-10-11 19:07, none missed, none failed |
 | T9 | Inventory and own-auctions snapshot | Beta | ⚠️ 2026-10-12 — bags correct, bank read (it was empty), query does not disturb the scan; a live auction still not captured (fixed in v0.10.1, untested) |
 | T10 | Log window, button, several characters | Beta | ✅ 2026-10-12 for the window and minimap button (user: "window works nice"); second character not tested |
 | T15 | Vendor prices recorded at the vendor | Beta | ✅ 2026-10-12 — 131 items from six vendors, Coarse Thread 10c |
@@ -314,3 +314,5 @@ Scheduled 2026-10-11 as the Windows task **"ForeverAH pull"** (`tools\register-p
 - The very first scheduled run sat for over a minute with no progress and was stopped. Run by hand the same command took 3 s, and a second scheduled run took 7 s. The task now uses priority 6 (normal disk priority instead of the default low one); a run after that took 3 s. The cause of the first stall is not proven — a cold start under low disk priority is the guess.
 First manual run: both EU houses answer with an empty table (nobody can scan them before launch) and are skipped; the beta house was unchanged.
 After 48 h check: `data/pull.log` has a line per hour, none with FAILED, and `python -m pipeline.storage status` shows the snapshots.
+
+Result 2026-10-15 ✅: 94 scheduled runs from 2026-10-11 19:07 to 2026-10-15 16:07, one every hour, no gaps and no failed source. The beta house gave 35 new AHledger snapshots (the rest were unchanged); both EU houses are still empty, as expected before launch. Re-check once at launch, when the EU houses start answering.
